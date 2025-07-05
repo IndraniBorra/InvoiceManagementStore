@@ -121,6 +121,7 @@ def get_all_invoices(session: Session = Depends(get_session)):
 @router.get("/invoice/{invoice_id}", response_model=InvoiceMinimalResponse)
 def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
     invoice = session.get(Invoice, invoice_id)
+    print("Invoice ID:", invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 

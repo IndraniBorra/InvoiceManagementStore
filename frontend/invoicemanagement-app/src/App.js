@@ -1,31 +1,16 @@
-// import React from 'react';
-// import InvoicePage from './components/InvoicePage';
-// import './App.css';
-
-// function App() {
-//   return (
-//     <div>
-//       <h1>Invoice Management App</h1>
-//       <InvoicePage />
-//       {/* <InvoiceList /> */}
-//     </div>
-//   );
-// }
-
-// export default App;
-
-// i wanna create a react app with react-router-dom to navigate between InvoicePage and AllInvoicesPage
-
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import InvoicePage from './components/InvoicePage';
-import AllInvoicesPage from './components/AllInvoicesPage';
+import AllInvoicesPage from './components/GetInvoices/AllInvoicesPage';
+import SingleInvoicePage from './components/GetInvoices/SingleInvoicePage';
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<InvoicePage />} />
+        <Route path="/invoice" element={<InvoicePage />} />
+        <Route path="*" element={<InvoicePage />} />
         <Route path="/invoices" element={<AllInvoicesPage />} />
+        <Route path="/invoice/:id" element={<SingleInvoicePage />} />
       </Routes>
     </Router>
   );

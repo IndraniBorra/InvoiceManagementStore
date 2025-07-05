@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api'; // Make sure this points to your axios setup
-import AllInvoices from './AllInvoices'; // Import the AllInvoices component
+import AllInvoices from './GetInvoices/AllInvoicesPage'; // Import the AllInvoices component
+import '../App.css';
 
 const InvoicePage = () => {
   const [invoices, setInvoices] = useState([]); // this state will help use to store all the invoices fetched from the backend
@@ -190,7 +191,7 @@ const InvoicePage = () => {
             <tr>
                 <th>ITEM DETAILS</th>
                 <th>QUANTITY</th>
-                <th>RATE</th>
+                <th>PRICE</th>
                 <th>AMOUNT</th>
             </tr>
             </thead>
@@ -271,12 +272,6 @@ const InvoicePage = () => {
 
         </form>
 
-        <AllInvoices 
-
-            invoices_as_props={invoices}
-            onEdit={loadInvoiceForEdit} // Passing the function to load invoice for edit
-
-        />
 
     </div>
   );
