@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api'; // Make sure this points to your axios setup
-import AllInvoices from './GetInvoices/AllInvoicesPage'; // Import the AllInvoices component
+import { useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import '../App.css';
 
 const InvoicePage = () => {
-  const [invoices, setInvoices] = useState([]); // this state will help use to store all the invoices fetched from the backend
-  const [editingInvoiceId, setEditingInvoiceId] = useState(null); // this state will help us to store the invoice_id that is being edited
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({    // this state will help us to store the form data for creating a new invoice
     customer_name: '',
     address: '',
@@ -13,6 +14,7 @@ const InvoicePage = () => {
     date_issued: '',
     terms: 'Due end of the month', // Default term
     due_date: '' ,// This will be calculated based on terms
+    invoice_status: 'draft', // Default status
     items: [{ description: '', qty: 1, price: 0 }],
 
   });
@@ -51,19 +53,35 @@ const InvoicePage = () => {
 
   }
 
-  // Fetch all invoices
-  const fetchInvoices = async () => {
+  useEffect(() => {
+    const fetchInvoiceToEdit = async () => {
     try {
-      const response = await api.get('/invoices');
-      setInvoices(response.data);
+      const response = await api.get(`/invoice/${id}`);
+      const invoice = response.data;
+
+      const editData = {
+        customer_name: invoice.customer_name,
+        address: invoice.address,
+        phone: invoice.phone,
+        date_issued: invoice.date_issued,
+        terms: invoice.terms || 'Due end of the month',
+        due_date: invoice.due_date || '',
+        items: invoice.items.map(item => ({
+        description: item.description,
+        qty: item.qty || 1,
+        price: item.amount / (item.qty || 1)
+        }))
+    };
+
+      setFormData(editData);
     } catch (error) {
-      console.error('Failed to fetch invoices', error);
+      console.error("Error fetching invoice to edit:", error);
     }
   };
-
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
+    if (id) {
+      fetchInvoiceToEdit();
+    }
+  }, [id]);
 
   // Handle form item changes
   const handleItemChange = (index, field, value) => {
@@ -89,9 +107,12 @@ const InvoicePage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingInvoiceId !== null) {
+
+      console.log("FormData being submitted:", formData);
+
+      if (id) {
       console.log("Submitting formData:", formData);
-      const response = await api.put(`/invoice/${editingInvoiceId}`, formData);
+      const response = await api.put(`/invoice/${id}`, formData);
       alert(`Invoice ID: ${response.data.id} updated successfully!`);}
       
       else {
@@ -106,40 +127,19 @@ const InvoicePage = () => {
         due_date: '',
         items: [{ description: '', qty: 1, price: 0 }]
       });
-      setEditingInvoiceId(null);
-      fetchInvoices(); // Refresh the table
+      navigate('/invoices');
     } catch (error) {
       console.error('Failed to submit invoice', error);
       alert('Error submitting invoice');
     }
   };
 
-  
-
-  // loads the invoice data into the form for editing
-    const loadInvoiceForEdit = (invoice) => {
-    const editData = {
-        customer_name: invoice.customer_name,
-        address: invoice.address,
-        phone: invoice.phone,
-        date_issued: invoice.date_issued,
-        terms: invoice.terms || 'Due end of the month',
-        due_date: invoice.due_date || '',
-        items: invoice.items.map(item => ({
-        description: item.description,
-        qty: item.qty || 1,
-        price: item.amount / (item.qty || 1)
-        }))
-    };
-
-  setFormData(editData);
-  setEditingInvoiceId(invoice.id);
-};
 
   return (
     <div className="container">
       <h2>Invoice Management Store (IMS)</h2>
-      <h3>{editingInvoiceId ? `Editing Invoice #${editingInvoiceId}` : 'Create New Invoice'}</h3>
+      <h3>{id ? `Editing Invoice #${id}` : 'Create New Invoice'}</h3>
+
 
         <form onSubmit={handleSubmit}>
 
@@ -245,28 +245,12 @@ const InvoicePage = () => {
             </tbody>
             </table>
 
-            <button type="button" onClick={(addItem)}>+ Add Item</button>
-            {editingInvoiceId !== null && (
-                <button
-                    type="button"
-                    onClick={() => {
-                    setEditingInvoiceId(null);
-                    setFormData({
-                        customer_name: '',
-                        address: '',
-                        phone: '',
-                        date_issued: '',
-                        items: [{ description: '', qty: 1, price: 0 }]
-                    });
-                    }}
-                    style={{ marginLeft: '10px', background: 'orange', color: 'white' }}
-                >
-                    Cancel Edit
-                </button>
-                )}
+            <button type="button" onClick={addItem}>+ Add Item</button>
+            {/* Removed editingInvoiceId related code since it's commented out and not used */}
 
             <button type="submit">
-                {editingInvoiceId ? 'Update Invoice' : 'Create Invoice'}
+              {id ? 'Update Invoice' : 'Create Invoice'}
+
             </button>
 
 

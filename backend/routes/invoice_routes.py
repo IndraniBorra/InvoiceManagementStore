@@ -65,10 +65,13 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         total=total,
         items=items
     )
-
+    invoice.invoice_status = "submitted"
     session.add(invoice)
     session.commit()
     session.refresh(invoice)
+
+    # Debug: print what you're returning
+    print(f"Created Invoice: {invoice}")
 
     # writing custom response manually:
     return InvoiceMinimalResponse(
@@ -79,14 +82,17 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         date_issued=invoice.date_issued,
         due_date=invoice.due_date,
         terms=invoice.terms,
+        invoice_status=invoice.invoice_status,
         total=invoice.total,
         items=[
             InvoiceItemMinimalResponse(
                 description=item.description,
+                qty=item.qty,  # Include quantity if needed
+                price=item.price,  # Include price if needed
                 amount=item.amount
             )
             for item in invoice.items
-        ]
+        ]    
     )
 
 
@@ -104,10 +110,13 @@ def get_all_invoices(session: Session = Depends(get_session)):
             date_issued=inv.date_issued,
             due_date=inv.due_date,
             terms=inv.terms,
+            invoice_status=inv.invoice_status,
             total=inv.total,
             items=[
                 InvoiceItemMinimalResponse(
                     description=item.description,
+                    qty=item.qty,  # Include quantity if needed
+                    price=item.price,  # Include price if needed
                     amount=item.amount
                 )
                 for item in inv.items
@@ -125,7 +134,7 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    return InvoiceMinimalResponse(
+    response = InvoiceMinimalResponse(
         id=invoice.id,
         customer_name=invoice.customer_name,
         address=invoice.address,
@@ -133,15 +142,22 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
         date_issued=invoice.date_issued,
         due_date=invoice.due_date,
         terms=invoice.terms,
+        invoice_status=invoice.invoice_status,
         total=invoice.total,
         items=[
             InvoiceItemMinimalResponse(
                 description=item.description,
+                qty=item.qty , # Include quantity if needed
+                price=item.price , # Include price if needed
                 amount=item.amount
+
             )
             for item in invoice.items
         ]
     )
+    print("Response:", response)
+    return response
+    
 
 #Delete: Delete a specific invoice by ID
 @router.delete("/invoice/{invoice_id}")
@@ -172,6 +188,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
     invoice_db.date_issued = updated_invoice.date_issued
     invoice_db.terms = updated_invoice.terms
     invoice_db.due_date = calculate_due_date(updated_invoice.date_issued, updated_invoice.terms)
+    invoice_db.invoice_status = "draft"
 
 
     # Clear old items and add new ones
@@ -188,7 +205,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
         ))
 
     invoice_db.total = total
-
+    
     session.add(invoice_db)
     session.commit()
     session.refresh(invoice_db)
@@ -200,11 +217,14 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
         phone=invoice_db.phone,
         date_issued=invoice_db.date_issued,
         due_date=invoice_db.due_date,
+        invoice_status=invoice_db.invoice_status,
         terms=invoice_db.terms,
         total=invoice_db.total,
         items=[
             InvoiceItemMinimalResponse(
                 description=item.description,
+                qty=item.qty , # Include quantity if needed
+                price=item.price , # Include price if needed
                 amount=item.amount
             )
             for item in invoice_db.items

@@ -40,6 +40,7 @@ const SingleInvoicePage = () => {
   return (
     <div className="invoice-container">
       <div className="invoice-header">
+        <div className="invoice-status-tag">{(invoice.invoice_status)}</div>
         <div className="left-info">
           <h2>{invoice.customer_name}</h2>
           <p>{invoice.address}</p>
@@ -77,7 +78,7 @@ const SingleInvoicePage = () => {
               <td>{item.description}</td>
               <td>{item.qty}</td>
               {/* <td>{item.price}</td> */}
-              <td>${(item.amount / item.qty).toFixed(2)}</td>
+              <td>${item.price}</td>
               <td>${item.amount.toFixed(2)}</td>
             </tr>
           ))}

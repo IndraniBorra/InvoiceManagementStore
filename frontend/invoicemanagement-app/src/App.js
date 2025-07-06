@@ -10,6 +10,7 @@ function App() {
         <Route path="/invoice" element={<InvoicePage />} />
         <Route path="*" element={<InvoicePage />} />
         <Route path="/invoices" element={<AllInvoicesPage />} />
+        <Route path="/edit-invoice/:id" element={<InvoicePage />} />
         <Route path="/invoice/:id" element={<SingleInvoicePage />} />
       </Routes>
     </Router>
