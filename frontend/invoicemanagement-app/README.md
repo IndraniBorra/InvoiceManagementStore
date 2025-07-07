@@ -68,3 +68,17 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+
+
+
+2 approches for customerNameSearch Auto-complete:
+1. LoadAllDetails from backend to react and then apply filter
+    - deals with memory
+    - no extra api calls
+    - have all details of customer so we can auto fill address and other information when we select partcular customer from the list
+    - methodis useful for less number of customer base
+2. Search API + debounce(user tying)
+    - make an api call everytime user type
+    - delays as it a network call
+    - efficient for large databases

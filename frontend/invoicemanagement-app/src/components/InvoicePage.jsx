@@ -3,6 +3,7 @@ import api from '../api'; // Make sure this points to your axios setup
 import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
+import CustomerNameSearch from './CustomerNameSearch';
 
 const InvoicePage = () => {
   const { id } = useParams();
@@ -77,7 +78,7 @@ const InvoicePage = () => {
     } catch (error) {
       console.error("Error fetching invoice to edit:", error);
     }
-  };
+  }; // Fetch invoice data if id is present in the URL
     if (id) {
       fetchInvoiceToEdit();
     }
@@ -135,6 +136,23 @@ const InvoicePage = () => {
   };
 
 
+
+  // const [text, setText] = useState('');
+  // const [suggestions, setSuggestions] = useState([]);
+  //   let matches = [];
+  //   if (text.length > 0) {
+  //     matches = users.filter(user => {
+  //       const regex = new RegExp(`${text}`, "gi");
+  //       return user.email.match(regex);
+  //     });
+  //   }
+  //   console.log('matches', matches);
+  //   setSuggestions(matches);
+  //   setText(text);
+
+
+
+
   return (
     <div className="container">
       <h2>Invoice Management Store (IMS)</h2>
@@ -144,8 +162,19 @@ const InvoicePage = () => {
         <form onSubmit={handleSubmit}>
 
             <label>Customer Name</label>
-            <input type="text" placeholder="Customer Name" value={formData.customer_name}
-                onChange={e => setFormData({ ...formData, customer_name: e.target.value })} />
+            {/* <input type="text" placeholder="Customer Name" value={formData.customer_name}
+                onChange={e => setFormData({ ...formData, customer_name: e.target.value, searchCustomerName: e.target.value })} /> */}
+            <CustomerNameSearch
+              value={formData.customer_name}
+              onCustomerSelect={(selected) => {
+                setFormData({
+                  ...formData,
+                  customer_name: selected.name || '',
+                  address: selected.address || '',
+                  phone: selected.phone || '',
+                });
+              }}
+            />
 
             <label>Address</label>
             <input type="text" placeholder="Address" value={formData.address}

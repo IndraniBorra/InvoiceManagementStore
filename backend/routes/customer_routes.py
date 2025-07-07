@@ -12,7 +12,7 @@ models.SQLModel.metadata.create_all(bind=engine)
 # Customer routes
 
 # Create a new customer
-@router.post("/customers", response_model=CustomerMinimalResponse)
+@router.post("/customer", response_model=CustomerMinimalResponse)
 def create_customer(customer: CustomerRequest, session: Session = Depends(get_session)):
     customer_db = Customer.from_orm(customer)
     session.add(customer_db)
@@ -41,7 +41,7 @@ def get_customers(session: Session = Depends(get_session)):
     ]    
 
 # Get a customer by ID
-@router.get("/customers/{customer_id}", response_model=CustomerMinimalResponse)
+@router.get("/customer/{customer_id}", response_model=CustomerMinimalResponse)
 def get_customer(customer_id: int, session: Session = Depends(get_session)):
     customer = session.get(Customer, customer_id)
     if not customer:
@@ -58,7 +58,7 @@ def get_customer(customer_id: int, session: Session = Depends(get_session)):
 
 
 # Update an existing customer
-@router.put("/customers/{customer_id}", response_model=CustomerMinimalResponse)
+@router.put("/customer/{customer_id}", response_model=CustomerMinimalResponse)
 def update_customer(customer_id: int, customer: CustomerRequest, session: Session = Depends(get_session)):
     customer_db = session.exec(select(Customer).where(Customer.id == customer_id).with_for_update()).one_or_none()  #retrieve a single database record when you expect either one result or no results at all.
     if not customer_db:
@@ -83,9 +83,8 @@ def update_customer(customer_id: int, customer: CustomerRequest, session: Sessio
     )
 
 # Delete a customer
-@router.delete("/customers/{customer_id}")
-def delete_customer(customer_id: int, session: Session = Depends(get_session
-)):
+@router.delete("/customer/{customer_id}")
+def delete_customer(customer_id: int, session: Session = Depends(get_session)):
     customer = session.get(Customer, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
