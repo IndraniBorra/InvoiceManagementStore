@@ -1,11 +1,31 @@
-import React from 'react';
+import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import api from '../../api'; // Making sure this points to my axios setup
+import '../../App.css';
 
 
-const AllInvoices = ({ invoices_as_props, onEdit }) => {
+const AllInvoicesPage = () => {
+  
+  const [invoices, setInvoices] = useState([]);
+
+  const fetchInvoices = async () => {
+    try {
+      const response = await api.get('/invoices');
+      // console.log('Fetched Invoices:', response.data);
+      setInvoices(response.data);
+    } catch (error) {
+      console.error('Failed to fetch invoices', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
 
 
   return (
-    <div style={{ marginTop: '2rem' }}>
+    <div className="container" style={{ marginTop: '2rem' }}>
       <h2>All Invoices</h2>
       <table className="table table-bordered table-striped">
         <thead>
@@ -21,7 +41,7 @@ const AllInvoices = ({ invoices_as_props, onEdit }) => {
           </tr>
         </thead>
         <tbody>
-          {invoices_as_props.map((invoice) => (
+          {invoices.map((invoice) => (
             <tr key={invoice.id}>
               <td>{invoice.id}</td>
               <td>{invoice.customer_name}</td>
@@ -39,16 +59,12 @@ const AllInvoices = ({ invoices_as_props, onEdit }) => {
                 </ul>
               </td>
               <td>
-                <button
-                  type='button'
-                  onClick={() => {
-                    onEdit(invoice);
-                    alert(`Editing invoice ${invoice.id}`);
-                  }}
-                  className="view-btn"
-                >
-                  Edit
-                </button>
+                <Link to={`/edit-invoice/${invoice.id}`}>
+                  <button className="view-btn">Edit</button>
+                </Link>
+                <Link to={`/invoice/${invoice.id}`}>
+                   <button className="view-btn">View</button>
+                </Link>
               </td>
             </tr>
           ))}
@@ -58,4 +74,4 @@ const AllInvoices = ({ invoices_as_props, onEdit }) => {
   );
 };
 
-export default AllInvoices;
+export default AllInvoicesPage;

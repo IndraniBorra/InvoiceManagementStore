@@ -1,0 +1,128 @@
+.invoice-container {
+  max-width: 850px;
+  margin: 2rem auto;
+  background: #fff;
+  padding: 2rem 3rem;
+  font-family: 'Segoe UI', sans-serif;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 1rem;
+}
+
+.invoice-status-tag {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background-color: #e0e0e0;
+  color: #333;
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+
+.left-info {
+  flex: 1;
+}
+
+.left-info h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.3rem;
+}
+
+.right-info {
+  text-align: right;
+  flex: 1;
+}
+
+.right-info .logo {
+  width: 120px;
+  height: auto;
+  margin-bottom: 0.5rem;
+}
+
+.right-info h3 {
+  margin: 0.3rem 0;
+  font-size: 1.5rem;
+  letter-spacing: 1px;
+}
+
+.right-info p {
+  margin: 0.2rem 0;
+  font-size: 0.95rem;
+}
+
+.right-info h2 {
+  margin-top: 0.4rem;
+  font-size: 1.6rem;
+  color: #333;
+}
+
+.invoice-details {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-left: 4px solid #007acc;
+}
+
+.invoice-details p {
+  margin: 0.3rem 0;
+  font-size: 1rem;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.invoice-table th, .invoice-table td {
+  border: 1px solid #ddd;
+  padding: 0.8rem;
+  text-align: left;
+}
+
+.invoice-table th {
+  background-color: #eef3f7;
+  font-weight: 600;
+  color: #333;
+}
+
+.invoice-table td {
+  color: #555;
+}
+
+.totals {
+  text-align: right;
+  font-size: 1rem;
+  padding-right: 0.5rem;
+  line-height: 1.8;
+}
+
+.totals p {
+  margin: 0.2rem 0;
+}
+
+.footer-message {
+  text-align: center;
+  font-style: italic;
+  color: #666;
+  font-size: 0.95rem;
+  margin-top: 3rem;
+}
+
+.error {
+  color: red;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
