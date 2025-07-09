@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import InvoicePage from './components/InvoicePage';
-import AllInvoicesPage from './components/GetInvoices/AllInvoicesPage';
-import SingleInvoicePage from './components/GetInvoices/SingleInvoicePage';
+import AllInvoicesPage from './components/AllInvoicesPage';
+import SingleInvoicePage from './components/SingleInvoicePage';
 import CustomerPage from './components/CustomerPage';
 
 function App() {

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import api from '../../api'; // Making sure this points to my axios setup
-import '../../App.css';
+import api from '../api'; // Making sure this points to my axios setup
+import '../App.css';
 
 
 const AllInvoicesPage = () => {
