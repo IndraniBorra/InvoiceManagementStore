@@ -1,7 +1,11 @@
 from fastapi import FastAPI
+from mangum import Mangum
 from database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 from routes.invoice_routes import router as invoice_router
+from routes.customer_routes import router as customer_router
+
+
 
 app = FastAPI()
 
@@ -12,6 +16,7 @@ def on_startup():
     create_db_and_tables()
 
 app.include_router(invoice_router)
+app.include_router(customer_router)
 
 origins = [
     "http://192.168.1.217:3000",       # A different application is allowed to call our FastAPI application only if it is running on localhost:3000
@@ -27,3 +32,6 @@ app.add_middleware(
     allow_methods=["*"],                  # Allow all HTTP methods
     allow_headers=["*"],                  # Allow all headers
 )
+
+# Lambda handler
+handler = Mangum(app)

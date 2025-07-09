@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api'; // Make sure this points to your axios setup
-import AllInvoices from './AllInvoices'; // Import the AllInvoices component
+import { useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import '../App.css';
+import CustomerNameSearch from './CustomerNameSearch';
 
 const InvoicePage = () => {
-  const [invoices, setInvoices] = useState([]); // this state will help use to store all the invoices fetched from the backend
-  const [editingInvoiceId, setEditingInvoiceId] = useState(null); // this state will help us to store the invoice_id that is being edited
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({    // this state will help us to store the form data for creating a new invoice
     customer_name: '',
     address: '',
@@ -12,6 +15,7 @@ const InvoicePage = () => {
     date_issued: '',
     terms: 'Due end of the month', // Default term
     due_date: '' ,// This will be calculated based on terms
+    invoice_status: 'draft', // Default status
     items: [{ description: '', qty: 1, price: 0 }],
 
   });
@@ -50,19 +54,35 @@ const InvoicePage = () => {
 
   }
 
-  // Fetch all invoices
-  const fetchInvoices = async () => {
-    try {
-      const response = await api.get('/invoices');
-      setInvoices(response.data);
-    } catch (error) {
-      console.error('Failed to fetch invoices', error);
-    }
-  };
-
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    const fetchInvoiceToEdit = async () => {
+    try {
+      const response = await api.get(`/invoice/${id}`);
+      const invoice = response.data;
+
+      const editData = {
+        customer_name: invoice.customer_name,
+        address: invoice.address,
+        phone: invoice.phone,
+        date_issued: invoice.date_issued,
+        terms: invoice.terms || 'Due end of the month',
+        due_date: invoice.due_date || '',
+        items: invoice.items.map(item => ({
+        description: item.description,
+        qty: item.qty || 1,
+        price: item.amount / (item.qty || 1)
+        }))
+    };
+
+      setFormData(editData);
+    } catch (error) {
+      console.error("Error fetching invoice to edit:", error);
+    }
+  }; // Fetch invoice data if id is present in the URL
+    if (id) {
+      fetchInvoiceToEdit();
+    }
+  }, [id]);
 
   // Handle form item changes
   const handleItemChange = (index, field, value) => {
@@ -88,9 +108,12 @@ const InvoicePage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingInvoiceId !== null) {
+
+      console.log("FormData being submitted:", formData);
+
+      if (id) {
       console.log("Submitting formData:", formData);
-      const response = await api.put(`/invoice/${editingInvoiceId}`, formData);
+      const response = await api.put(`/invoice/${id}`, formData);
       alert(`Invoice ID: ${response.data.id} updated successfully!`);}
       
       else {
@@ -105,46 +128,53 @@ const InvoicePage = () => {
         due_date: '',
         items: [{ description: '', qty: 1, price: 0 }]
       });
-      setEditingInvoiceId(null);
-      fetchInvoices(); // Refresh the table
+      navigate('/invoices');
     } catch (error) {
       console.error('Failed to submit invoice', error);
       alert('Error submitting invoice');
     }
   };
 
-  
 
-  // loads the invoice data into the form for editing
-    const loadInvoiceForEdit = (invoice) => {
-    const editData = {
-        customer_name: invoice.customer_name,
-        address: invoice.address,
-        phone: invoice.phone,
-        date_issued: invoice.date_issued,
-        terms: invoice.terms || 'Due end of the month',
-        due_date: invoice.due_date || '',
-        items: invoice.items.map(item => ({
-        description: item.description,
-        qty: item.qty || 1,
-        price: item.amount / (item.qty || 1)
-        }))
-    };
 
-  setFormData(editData);
-  setEditingInvoiceId(invoice.id);
-};
+  // const [text, setText] = useState('');
+  // const [suggestions, setSuggestions] = useState([]);
+  //   let matches = [];
+  //   if (text.length > 0) {
+  //     matches = users.filter(user => {
+  //       const regex = new RegExp(`${text}`, "gi");
+  //       return user.email.match(regex);
+  //     });
+  //   }
+  //   console.log('matches', matches);
+  //   setSuggestions(matches);
+  //   setText(text);
+
+
+
 
   return (
     <div className="container">
       <h2>Invoice Management Store (IMS)</h2>
-      <h3>{editingInvoiceId ? `Editing Invoice #${editingInvoiceId}` : 'Create New Invoice'}</h3>
+      <h3>{id ? `Editing Invoice #${id}` : 'Create New Invoice'}</h3>
+
 
         <form onSubmit={handleSubmit}>
 
             <label>Customer Name</label>
-            <input type="text" placeholder="Customer Name" value={formData.customer_name}
-                onChange={e => setFormData({ ...formData, customer_name: e.target.value })} />
+            {/* <input type="text" placeholder="Customer Name" value={formData.customer_name}
+                onChange={e => setFormData({ ...formData, customer_name: e.target.value, searchCustomerName: e.target.value })} /> */}
+            <CustomerNameSearch
+              value={formData.customer_name}
+              onCustomerSelect={(selected) => {
+                setFormData({
+                  ...formData,
+                  customer_name: selected.name || '',
+                  address: selected.address || '',
+                  phone: selected.phone || '',
+                });
+              }}
+            />
 
             <label>Address</label>
             <input type="text" placeholder="Address" value={formData.address}
@@ -190,7 +220,7 @@ const InvoicePage = () => {
             <tr>
                 <th>ITEM DETAILS</th>
                 <th>QUANTITY</th>
-                <th>RATE</th>
+                <th>PRICE</th>
                 <th>AMOUNT</th>
             </tr>
             </thead>
@@ -244,39 +274,17 @@ const InvoicePage = () => {
             </tbody>
             </table>
 
-            <button type="button" onClick={(addItem)}>+ Add Item</button>
-            {editingInvoiceId !== null && (
-                <button
-                    type="button"
-                    onClick={() => {
-                    setEditingInvoiceId(null);
-                    setFormData({
-                        customer_name: '',
-                        address: '',
-                        phone: '',
-                        date_issued: '',
-                        items: [{ description: '', qty: 1, price: 0 }]
-                    });
-                    }}
-                    style={{ marginLeft: '10px', background: 'orange', color: 'white' }}
-                >
-                    Cancel Edit
-                </button>
-                )}
+            <button type="button" onClick={addItem}>+ Add Item</button>
+            {/* Removed editingInvoiceId related code since it's commented out and not used */}
 
             <button type="submit">
-                {editingInvoiceId ? 'Update Invoice' : 'Create Invoice'}
+              {id ? 'Update Invoice' : 'Create Invoice'}
+
             </button>
 
 
         </form>
 
-        <AllInvoices 
-
-            invoices_as_props={invoices}
-            onEdit={loadInvoiceForEdit} // Passing the function to load invoice for edit
-
-        />
 
     </div>
   );

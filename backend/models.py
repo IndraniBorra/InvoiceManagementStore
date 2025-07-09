@@ -11,10 +11,10 @@ class Invoice(SQLModel, table=True):
     phone: str
     date_issued: date
     total: float = 0.0
-    # terms: enumerate = Field( 'Net 15', 'Net 30','Net 45', 'Net 60', 'Due on the receipt','Due end of the month', 'Due end of the next month','Custom',default=' Due end of the month' , nullable=True)  # Assuming terms is an optional field
     terms: str
     due_date: date
     items: List["InvoiceItem"] = Relationship(back_populates="invoice")
+    invoice_status: str = Field(default="draft")
 
 
 class InvoiceItem(SQLModel, table=True):
@@ -25,6 +25,21 @@ class InvoiceItem(SQLModel, table=True):
     amount: float
     invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
     invoice: Optional[Invoice] = Relationship(back_populates="items") #many-to-one relationship with Invoice
+
+class Customer(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    address: str
+    phone: str
+    email: str = None
+    # invoices: List[Invoice] = Relationship(back_populates="customer")
+
+class Item(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    description: str
+    qty: int
+    price: float
+    # invoices: List[InvoiceItem] = Relationship(back_populates="item")
 
 #request schemas
 class InvoiceItemRequest(BaseModel):
@@ -39,11 +54,25 @@ class InvoiceRequest(BaseModel):
     date_issued: date
     terms: str
     due_date: date
+    invoice_status: Optional[str] = "draft"  # Default status
     items: list[InvoiceItemRequest]
+
+class CustomerRequest(BaseModel):
+    name: str
+    address: str
+    phone: str
+    email: Optional[str] = None
+
+class ItemRequest(BaseModel):
+    description: str
+    qty: int
+    price: float
 
 #response schemas
 class InvoiceItemMinimalResponse(BaseModel):
     description: str
+    qty: int
+    price: float
     amount: float
 
 class InvoiceMinimalResponse(BaseModel):
@@ -55,7 +84,25 @@ class InvoiceMinimalResponse(BaseModel):
     due_date: date
     terms: str
     total: float
+    invoice_status: str
     items: list[InvoiceItemMinimalResponse]
+
+    class Config:
+        orm_mode = True
+
+class CustomerMinimalResponse(BaseModel):
+    id: int
+    name: str
+    address: str
+    phone: str
+    email: str
+
+class ItemMinimalResponse(BaseModel):
+    id: int
+    description: str
+    qty: int
+    price: float
+    amount: float
 
     class Config:
         orm_mode = True

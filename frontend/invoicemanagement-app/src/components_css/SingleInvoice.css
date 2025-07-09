@@ -1,0 +1,155 @@
+.invoice-container {
+  max-width: 850px;
+  margin: 2rem auto;
+  background: #fff;
+  padding: 2rem 3rem;
+  font-family: 'Segoe UI', sans-serif;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 1rem;
+}
+
+.invoice-status-tag {
+  position: absolute;
+  top: 120px;
+  left: 310px;
+  background: darkorange;
+  color: white;
+  padding: 0.5rem 1.5rem;
+  transform: rotate(-45deg);
+  transform-origin: top left;
+  font-weight: bold;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  z-index: 10;
+}
+
+.download-btn-wrapper {
+  text-align: right;
+  margin: 1rem 2rem;
+}
+
+.download-btn {
+  background: #007acc;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: background 0.3s ease;
+}
+
+.download-btn:hover {
+  background: #005fa3;
+}
+.left-info {
+  flex: 1;
+}
+
+.left-info h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.right-info {
+  text-align: right;
+  flex: 1;
+}
+
+.right-info .logo {
+  width: 120px;
+  height: auto;
+  margin-bottom: 0.5rem;
+}
+
+.right-info h3 {
+  margin: 0.3rem 0;
+  font-size: 1.5rem;
+  letter-spacing: 1px;
+}
+
+.right-info p {
+  margin: 0.2rem 0;
+  font-size: 0.95rem;
+}
+
+.right-info h2 {
+  margin-top: 0.4rem;
+  font-size: 1.6rem;
+  color: #333;
+}
+
+.invoice-details {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-left: 4px solid #007acc;
+}
+
+.invoice-details p {
+  margin: 0.3rem 0;
+  font-size: 1rem;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.invoice-table th, .invoice-table td {
+  border: 1px solid #ddd;
+  padding: 0.8rem;
+  text-align: left;
+}
+
+.invoice-table th {
+  background-color: #eef3f7;
+  font-weight: 600;
+  color: #333;
+}
+
+.invoice-table td {
+  color: #555;
+}
+
+.totals {
+  text-align: right;
+  font-size: 1rem;
+  padding-right: 0.5rem;
+  line-height: 1.8;
+}
+
+.totals p {
+  margin: 0.2rem 0;
+}
+
+.footer-message {
+  text-align: center;
+  font-style: italic;
+  color: #666;
+  font-size: 0.95rem;
+  margin-top: 3rem;
+}
+
+.error {
+  color: red;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+

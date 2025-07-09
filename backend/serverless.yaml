@@ -1,0 +1,51 @@
+service: invoicemanagement-backend
+
+plugins:
+  - serverless-python-requirements
+
+provider:
+  name: aws
+  runtime: python3.12
+  stage: ${opt:stage, "local"}
+  region: us-east-1
+  deploymentBucket:
+    name: cf-templates--embz8ioxogig-us-east-1
+
+package:
+    exclude:
+        - Makefile
+        - poetry.lock
+        - README.md
+        - tests/**
+        - docs/**
+        - node_modules/**
+        - .venv/**
+        - .serverless/**
+        - package.json
+        - package-lock.json
+        - .pytest_cache
+        - .hypothesis
+        - __pycache__/**
+
+
+custom:
+  pythonRequirements:
+    # dockerizePip: true
+    layer:
+      name: serverless-fastapi-deps
+      description: Dependencies of serverless-fastapi
+      compatibleRuntimes:
+        - python3.12
+
+
+functions:
+  main:
+    handler: main.handler
+    environment:
+      STAGE: ${self:provider.stage}
+    layers:
+      - { Ref: PythonRequirementsLambdaLayer }
+    events:
+      - http:
+          method: any
+          path: /{proxy+}
