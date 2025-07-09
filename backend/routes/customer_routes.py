@@ -30,6 +30,7 @@ def create_customer(customer: CustomerRequest, session: Session = Depends(get_se
 @router.get("/customers", response_model=List[CustomerMinimalResponse])
 def get_customers(session: Session = Depends(get_session)):
     customers = session.exec(select(Customer)).all()
+    print("Session started for all customers retrieval")  # Debugging log
     return [
         CustomerMinimalResponse(
             id=customer.id,
@@ -38,7 +39,7 @@ def get_customers(session: Session = Depends(get_session)):
             phone=customer.phone,
             email=customer.email
         ) for customer in customers
-    ]    
+    ]
 
 # Get a customer by ID
 @router.get("/customer/{customer_id}", response_model=CustomerMinimalResponse)

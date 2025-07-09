@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from mangum import Mangum
 from database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 from routes.invoice_routes import router as invoice_router
@@ -31,3 +32,6 @@ app.add_middleware(
     allow_methods=["*"],                  # Allow all HTTP methods
     allow_headers=["*"],                  # Allow all headers
 )
+
+# Lambda handler
+handler = Mangum(app)
