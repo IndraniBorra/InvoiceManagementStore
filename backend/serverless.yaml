@@ -1,3 +1,5 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: indrani
 service: invoicemanagement-backend
 
 plugins:
@@ -30,7 +32,10 @@ package:
 
 custom:
   pythonRequirements:
-    # dockerizePip: true
+    # dockerFile: Dockerfile
+    dockerizePip: true
+    invalidateCache: true
+    useStaticCache: true
     layer:
       name: serverless-fastapi-deps
       description: Dependencies of serverless-fastapi

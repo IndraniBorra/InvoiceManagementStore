@@ -1,4 +1,6 @@
 from sqlmodel import SQLModel, Field, Relationship
+from pydantic import BaseModel, EmailStr, field_validator, Field
+
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date
@@ -16,15 +18,36 @@ class Invoice(SQLModel, table=True):
     items: List["InvoiceItem"] = Relationship(back_populates="invoice")
     invoice_status: str = Field(default="draft")
 
+    @field_validator("customer_name", "address", "phone", "date_issued", "terms", "due_date")
+    @classmethod
+    def not_empty(cls, v):
+        if not v.strip():
+            raise ValueError("This field cannot be empty")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def valid_phone(cls, v):
+        if not v.isdigit() or len(v) != 10:
+            raise ValueError("Phone number must be 10 digits")
+        return v
+
 
 class InvoiceItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     description: str
-    qty: int
-    price: float
-    amount: float
+    qty: int = Field(..., gt=0, description="Quantity must be > 0")
+    price: float = Field(..., gt=0, description="Price must be > 0")
+    amount: float = Field(..., ge=0)
     invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
     invoice: Optional[Invoice] = Relationship(back_populates="items") #many-to-one relationship with Invoice
+
+    @field_validator("description")
+    @classmethod
+    def description_must_not_be_empty(cls, v):
+        if not v.strip():
+            raise ValueError("Item description cannot be empty")
+        return v
 
 class Customer(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

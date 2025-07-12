@@ -8,6 +8,7 @@ import CustomerNameSearch from './CustomerNameSearch';
 const InvoicePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({    // this state will help us to store the form data for creating a new invoice
     customer_name: '',
     address: '',
@@ -19,6 +20,31 @@ const InvoicePage = () => {
     items: [{ description: '', qty: 1, price: 0 }],
 
   });
+
+  // Function to validate form data
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.customer_name.trim()) newErrors.customer_name = "Customer name is required.";
+    if (!formData.address.trim()) newErrors.address = "Address is required.";
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!/^\d{10}$/.test(formData.phone)) {
+      newErrors.phone = "Phone number must be 10 digits.";
+    }
+    if (!formData.date_issued) newErrors.date_issued = "Issue date is required.";
+    if (!formData.terms.trim()) newErrors.terms = "Terms are required.";
+
+    formData.items.forEach((item, index) => {
+      if (!item.description.trim()) newErrors[`item_desc_${index}`] = "Description is required.";
+      if (item.qty <= 0) newErrors[`item_qty_${index}`] = "Quantity must be greater than 0.";
+      if (item.price <= 0) newErrors[`item_price_${index}`] = "Price must be greater than 0.";
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
 
   // Function to calculate due date based on terms
   const calculateDueDate = (issued,terms) => {
@@ -107,6 +133,10 @@ const InvoicePage = () => {
   // Submit invoice
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) {
+      alert("Please fix the errors before submitting.");
+      return;
+    }
     try {
 
       console.log("FormData being submitted:", formData);
@@ -137,20 +167,6 @@ const InvoicePage = () => {
 
 
 
-  // const [text, setText] = useState('');
-  // const [suggestions, setSuggestions] = useState([]);
-  //   let matches = [];
-  //   if (text.length > 0) {
-  //     matches = users.filter(user => {
-  //       const regex = new RegExp(`${text}`, "gi");
-  //       return user.email.match(regex);
-  //     });
-  //   }
-  //   console.log('matches', matches);
-  //   setSuggestions(matches);
-  //   setText(text);
-
-
 
 
   return (
@@ -175,18 +191,22 @@ const InvoicePage = () => {
                 });
               }}
             />
+            {errors.customer_name && <p className="error-text">{errors.customer_name}</p>}
 
             <label>Address</label>
             <input type="text" placeholder="Address" value={formData.address}
                 onChange={e => setFormData({ ...formData, address: e.target.value })} />
+            {errors.address && <p className="error-text">{errors.address}</p>}
 
             <label>Phone Number</label>
             <input type="text" placeholder="Phone" value={formData.phone}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+            {errors.phone && <p className="error-text">{errors.phone}</p>}
 
             <label>Date Issued</label>
             <input type="date" value={formData.date_issued}
                 onChange={e => setFormData({ ...formData, date_issued: e.target.value })} />
+            {errors.date_issued && <p className="error-text">{errors.date_issued}</p>}
 
             <label>Terms</label>
               <select
@@ -208,6 +228,7 @@ const InvoicePage = () => {
                 <option>Due end of next month</option>
                 <option>Custom</option>
               </select>
+            {errors.terms && <p className="error-text">{errors.terms}</p>}
 
 
             <label>Due Date</label>
@@ -234,6 +255,8 @@ const InvoicePage = () => {
                     value={item.description}
                     onChange={e => handleItemChange(index, 'description', e.target.value)}
                     />
+                    {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
+
                 </td>
                 <td>
                     <input
@@ -242,6 +265,7 @@ const InvoicePage = () => {
                     value={item.qty}
                     onChange={e => handleItemChange(index, 'qty', parseFloat(e.target.value))}
                     />
+                    {errors[`item_qty_${index}`] && <p className="error-text">{errors[`item_qty_${index}`]}</p>}
                 </td>
                 <td>
                     <input
@@ -250,6 +274,7 @@ const InvoicePage = () => {
                     value={item.price}
                     onChange={e => handleItemChange(index, 'price', parseFloat(e.target.value))}
                     />
+                    {errors[`item_price_${index}`] && <p className="error-text">{errors[`item_price_${index}`]}</p>}
                 </td>
 
                 <td>

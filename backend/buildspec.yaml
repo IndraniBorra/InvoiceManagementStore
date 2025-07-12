@@ -1,0 +1,29 @@
+# spec file to buld serverless application using serverless framework
+# This file is used by AWS CodeBuild to build the application   
+
+
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - echo "Installing Serverless Framework"
+      - npm install -g serverless
+      - npm install -g serverless-python-requirements
+
+  pre_build:
+    commands:
+      - echo "Pre-build phase"
+  build:
+    commands:
+      - sls deploy --stage local
+      - echo "Building the application"
+  post_build:
+    commands:
+      - echo "Serverless application built successfully"
+      - echo "Post-build phase"
+artifacts:
+  files:
+    - .serverless/**
+    - '**/*'
