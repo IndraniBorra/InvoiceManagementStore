@@ -3,12 +3,11 @@ from sqlmodel import Session, select
 from database import get_session, engine
 from typing import List
 from datetime import date, timedelta
-import models
-from models import Invoice, InvoiceItem, InvoiceRequest, InvoiceItemRequest, InvoiceMinimalResponse, InvoiceItemMinimalResponse
+from models import Invoice, LineItem, Customer
+from api import InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest
 
 router = APIRouter()
-# Create the database tables if they don't exist when our application starts
-models.SQLModel.metadata.create_all(bind = engine)
+
 # Invoice routes
 
 
@@ -43,83 +42,87 @@ def calculate_due_date(date_issued: date, terms: str) -> date:
 #Post: Create a new invoice
 @router.post("/invoice", response_model=InvoiceMinimalResponse)
 def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_session)):
-    items = []
-    total = 0.0
-    for item in invoice_data.items:
-        amount = item.qty * item.price
-        total += amount
-        items.append(InvoiceItem(
-            description=item.description,
-            qty=item.qty,
-            price=item.price,
-            amount=amount
-        ))
-    due_date = calculate_due_date(invoice_data.date_issued, invoice_data.terms)
+
+    customer = session.get(Customer, invoice_data.customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    due_date = calculate_due_date(invoice_data.date_issued, invoice_data.invoice_terms)
+    
     invoice = Invoice(
-        customer_name=invoice_data.customer_name,
-        address=invoice_data.address,
-        phone=invoice_data.phone,
+        customer_id=invoice_data.customer_id,
         date_issued=invoice_data.date_issued,
-        terms=invoice_data.terms,
-        due_date=due_date,
-        total=total,
-        items=items
+        invoice_terms=invoice_data.invoice_terms,
+        invoice_due_date=due_date,
+        invoice_status=invoice_data.invoice_status,
+        customer=customer,
+        line_items=[
+            LineItem(
+                product_id=item.product_id,
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
+            )
+            for item in invoice_data.line_items
+        ]
     )
+
+    print(f"Creating Invoice: {invoice}")
+
     invoice.invoice_status = "submitted"
     session.add(invoice)
     session.commit()
     session.refresh(invoice)
 
-    # Debug: print what you're returning
-    print(f"Created Invoice: {invoice}")
-
-    # writing custom response manually:
     return InvoiceMinimalResponse(
         id=invoice.id,
-        customer_name=invoice.customer_name,
-        address=invoice.address,
-        phone=invoice.phone,
+        customer_id=invoice.customer_id,
+        customer_name=invoice.customer.customer_name,
+        customer_address=invoice.customer.customer_address,
+        customer_phone=invoice.customer.customer_phone,
         date_issued=invoice.date_issued,
-        due_date=invoice.due_date,
-        terms=invoice.terms,
+        invoice_due_date=due_date,
+        invoice_terms=invoice.invoice_terms,
         invoice_status=invoice.invoice_status,
-        total=invoice.total,
-        items=[
-            InvoiceItemMinimalResponse(
-                description=item.description,
-                qty=item.qty,  # Include quantity if needed
-                price=item.price,  # Include price if needed
-                amount=item.amount
+        invoice_total=invoice.invoice_total,
+        line_items=[
+            LineItemMinimalResponse(
+                product_id=item.product_id,
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
             )
-            for item in invoice.items
-        ]    
+            for item in invoice.line_items
+        ]
     )
+
+  
 
 
 #Get: Retrieve all invoices
 @router.get("/invoices", response_model=List[InvoiceMinimalResponse])
 def get_all_invoices(session: Session = Depends(get_session)):
     invoices = session.exec(select(Invoice)).all()
-
+    print("Retrieved Invoices:", invoices)
+    if not invoices:
+        raise HTTPException(status_code=404, detail="No invoices found")
     return [
         InvoiceMinimalResponse(
             id=inv.id,
-            customer_name=inv.customer_name,
-            address=inv.address,
-            phone=inv.phone,
+            customer_id=inv.customer_id,
+            customer_name=inv.customer.customer_name,
+            customer_address=inv.customer.customer_address,
+            customer_phone=inv.customer.customer_phone,
             date_issued=inv.date_issued,
-            due_date=inv.due_date,
-            terms=inv.terms,
+            invoice_due_date=inv.invoice_due_date,
+            invoice_terms=inv.invoice_terms,
             invoice_status=inv.invoice_status,
-            total=inv.total,
-            items=[
-                InvoiceItemMinimalResponse(
-                    description=item.description,
-                    qty=item.qty,  # Include quantity if needed
-                    price=item.price,  # Include price if needed
-                    amount=item.amount
+            invoice_total=inv.invoice_total,
+            line_items=[
+                LineItemMinimalResponse(
+                    product_id=item.product_id,
+                    lineitem_qty=item.lineitem_qty,
+                    lineitem_total=item.lineitem_total
                 )
-                for item in inv.items
+                for item in inv.line_items
             ]
         )
         for inv in invoices
@@ -145,7 +148,7 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
         invoice_status=invoice.invoice_status,
         total=invoice.total,
         items=[
-            InvoiceItemMinimalResponse(
+            LineItemMinimalResponse(
                 description=item.description,
                 qty=item.qty , # Include quantity if needed
                 price=item.price , # Include price if needed
@@ -172,8 +175,7 @@ def delete_invoice(invoice_id: int, session: Session = Depends(get_session)):
 #Put: Update a specific invoice by ID
 @router.put("/invoice/{invoice_id}", response_model=InvoiceMinimalResponse)
 def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Session = Depends(get_session)):
-    # invoice_db = session.get(Invoice, invoice_id).with_for_update()  # Lock the row for update
-    # Use select() with for_update() instead of session.get()
+
     statement = select(Invoice).where(Invoice.id == invoice_id).with_for_update()
     invoice_db = session.exec(statement).first()
 
@@ -197,7 +199,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
     for item_data in updated_invoice.items:
         amount = item_data.qty * item_data.price
         total += amount
-        invoice_db.items.append(InvoiceItem(
+        invoice_db.items.append(LineItem(
             description=item_data.description,
             qty=item_data.qty,
             price=item_data.price,
@@ -221,7 +223,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
         terms=invoice_db.terms,
         total=invoice_db.total,
         items=[
-            InvoiceItemMinimalResponse(
+            LineItemMinimalResponse(
                 description=item.description,
                 qty=item.qty , # Include quantity if needed
                 price=item.price , # Include price if needed

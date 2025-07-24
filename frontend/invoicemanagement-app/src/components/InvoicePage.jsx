@@ -4,6 +4,9 @@ import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import CustomerNameSearch from './CustomerNameSearch';
+import AutocompleteSearch from './AutoCompleteSearch';
+import LineItem from './LineItem';
+
 
 const InvoicePage = () => {
   const { id } = useParams();
@@ -11,34 +14,38 @@ const InvoicePage = () => {
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({    // this state will help us to store the form data for creating a new invoice
     customer_name: '',
-    address: '',
-    phone: '',
+    customer_address: '',
+    customer_phone: '',
     date_issued: '',
-    terms: 'Due end of the month', // Default term
-    due_date: '' ,// This will be calculated based on terms
+    invoice_terms: 'Due end of the month', // Default term
+    invoice_due_date: '' ,// This will be calculated based on terms
     invoice_status: 'draft', // Default status
-    items: [{ description: '', qty: 1, price: 0 }],
-
+    invoice_total: 0, // Total amount of the invoice
+    line_items: [{ product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }], // Default line item
   });
+
+
+  
 
   // Function to validate form data
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.customer_name.trim()) newErrors.customer_name = "Customer name is required.";
-    if (!formData.address.trim()) newErrors.address = "Address is required.";
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone number is required.";
-    } else if (!/^\d{10}$/.test(formData.phone)) {
-      newErrors.phone = "Phone number must be 10 digits.";
+    if (!formData.customer_name) newErrors.customer_name = "Customer name is required.";
+    if (!formData.customer_address) newErrors.customer_address = "Address is required.";
+    if (!formData.customer_phone) {
+      newErrors.customer_phone = "Phone number is required.";
+    } else if (!/^\d{10}$/.test(formData.customer_phone)) {
+      newErrors.customer_phone = "Phone number must be 10 digits.";
     }
     if (!formData.date_issued) newErrors.date_issued = "Issue date is required.";
-    if (!formData.terms.trim()) newErrors.terms = "Terms are required.";
+    if (!formData.invoice_terms) newErrors.invoice_terms = "Terms are required.";
 
-    formData.items.forEach((item, index) => {
-      if (!item.description.trim()) newErrors[`item_desc_${index}`] = "Description is required.";
-      if (item.qty <= 0) newErrors[`item_qty_${index}`] = "Quantity must be greater than 0.";
-      if (item.price <= 0) newErrors[`item_price_${index}`] = "Price must be greater than 0.";
+    formData.line_items.forEach((item, index) => {
+      if (item.line_items_qty <= 0) newErrors[`item_qty_${index}`] = "Quantity must be greater than 0.";
+
+      if (!item.product_description) newErrors[`item_desc_${index}`] = "Description is required.";
+      if (item.product_price <= 0) newErrors[`item_price_${index}`] = "Price must be greater than 0.";
     });
 
     setErrors(newErrors);
@@ -88,15 +95,16 @@ const InvoicePage = () => {
 
       const editData = {
         customer_name: invoice.customer_name,
-        address: invoice.address,
-        phone: invoice.phone,
+        customer_address: invoice.customer_address,
+        customer_phone: invoice.customer_phone,
         date_issued: invoice.date_issued,
-        terms: invoice.terms || 'Due end of the month',
-        due_date: invoice.due_date || '',
-        items: invoice.items.map(item => ({
-        description: item.description,
-        qty: item.qty || 1,
-        price: item.amount / (item.qty || 1)
+        invoice_terms: invoice.terms || 'Due end of the month',
+        invoice_due_date: invoice.due_date || '',
+        line_items: invoice.items.map(item => ({
+          product_description: item.product_description || item.line_items_description || '',
+          line_items_qty: item.line_items_qty || 1,
+          product_price: item.product_price || item.line_items_price || 0,
+          line_items_total: (item.line_items_qty || 1) * (item.product_price || item.line_items_price || 0),
         }))
     };
 
@@ -112,22 +120,37 @@ const InvoicePage = () => {
 
   // Handle form item changes
   const handleItemChange = (index, field, value) => {
-    const updatedItems = [...formData.items];
+    const updatedItems = [...formData.line_items];
     updatedItems[index][field] = value;
-    setFormData({ ...formData, items: updatedItems });
+    // Calculate new total
+    const newTotal = updatedItems.reduce(
+      (total, item) => total + (item.line_items_qty * item.product_price || 0),
+      0
+    );
+    setFormData({ ...formData, line_items: updatedItems, invoice_total: newTotal });
   };
 
   // Add new item to invoice
   const addItem = () => {
+    const newItems = [...formData.line_items, { product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }];
+    const newTotal = newItems.reduce(
+      (total, item) => total + (item.line_items_qty * item.product_price || 0),
+      0
+    );
     setFormData({
       ...formData,
-      items: [...formData.items, { description: '', qty: 1, price: 0 }]
+      line_items: newItems,
+      invoice_total: newTotal,
     });
   };
   // Remove item from invoice
   const removeItem = (index) => {
-    const updatedItems = formData.items.filter((_, i) => i !== index);
-    setFormData({ ...formData, items: updatedItems });
+    const updatedItems = formData.line_items.filter((_, i) => i !== index);
+    const newTotal = updatedItems.reduce(
+      (total, item) => total + (item.line_items_qty * item.product_price || 0),
+      0
+    );
+    setFormData({ ...formData, line_items: updatedItems, invoice_total: newTotal });
   };
 
   // Submit invoice
@@ -137,26 +160,42 @@ const InvoicePage = () => {
       alert("Please fix the errors before submitting.");
       return;
     }
+
+    // Log the exact data being sent
+    console.log("=== FRONTEND DATA BEING SENT ===");
+    console.log(JSON.stringify(formData, null, 2));
+
     try {
 
       console.log("FormData being submitted:", formData);
 
       if (id) {
-      console.log("Submitting formData:", formData);
-      const response = await api.put(`/invoice/${id}`, formData);
-      alert(`Invoice ID: ${response.data.id} updated successfully!`);}
-      
-      else {
+        // Update existing invoice
+        const response = await api.put(`/invoice/${id}`, formData);
+        if (response.status === 200) {
+          alert(`Invoice ID: ${response.data.id} updated successfully!`);
+        } else {
+          alert('Failed to update invoice.');
+        }
+      } else {
+        // Create new invoice
         const response = await api.post('/invoice', formData);
-        alert(`Invoice ID: ${response.data.id} created successfully!`);}
+        if (response.status === 201 || response.status === 200) {
+          alert(`Invoice ID: ${response.data.id} created successfully!`);
+        } else {
+          alert('Failed to create invoice.');
+        }
+      }
       setFormData({
         customer_name: '',
-        address: '',
-        phone: '',
+        customer_address: '',
+        customer_phone: '',
         date_issued: '',
-        terms: '',        
-        due_date: '',
-        items: [{ description: '', qty: 1, price: 0 }]
+        invoice_terms: 'Due end of the month', // Default term
+        invoice_due_date: '' ,// This will be calculated based on terms
+        invoice_status: 'draft', // Default status
+        invoice_total: 0, // Total amount of the invoice
+        line_items: [{ product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }], // Default line item
       });
       navigate('/invoices');
     } catch (error) {
@@ -185,23 +224,41 @@ const InvoicePage = () => {
               onCustomerSelect={(selected) => {
                 setFormData({
                   ...formData,
-                  customer_name: selected.name || '',
-                  address: selected.address || '',
-                  phone: selected.phone || '',
+                  customer_name: selected.customer_name || '',
+                  customer_address: selected.customer_address || '',
+                  customer_phone: selected.customer_phone || '',
                 });
               }}
             />
+
+
+
+            {/* <AutocompleteSearch
+              fetchUrl="http://localhost:8000/customers"
+              displayFields={['customer_name']}
+              placeholder="Search customer"
+              onSelect={(selectedCustomer) => {
+                console.log("Selected Customer:", selectedCustomer);
+                setFormData({
+                  ...formData,
+                  customer_name: selectedCustomer.customer_name || '',
+                  address: selectedCustomer.customer_address || '',
+                  phone: selectedCustomer.customer_phone || '',
+                });
+              }}
+            />  */}
+
             {errors.customer_name && <p className="error-text">{errors.customer_name}</p>}
 
             <label>Address</label>
-            <input type="text" placeholder="Address" value={formData.address}
-                onChange={e => setFormData({ ...formData, address: e.target.value })} />
-            {errors.address && <p className="error-text">{errors.address}</p>}
+            <input type="text" placeholder="Address" value={formData.customer_address}
+                onChange={e => setFormData({ ...formData, customer_address: e.target.value })} />
+            {errors.customer_address && <p className="error-text">{errors.customer_address}</p>}
 
             <label>Phone Number</label>
-            <input type="text" placeholder="Phone" value={formData.phone}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })} />
-            {errors.phone && <p className="error-text">{errors.phone}</p>}
+            <input type="text" placeholder="Phone" value={formData.customer_phone}
+                onChange={e => setFormData({ ...formData, customer_phone: e.target.value })} />
+            {errors.customer_phone && <p className="error-text">{errors.customer_phone}</p>}
 
             <label>Date Issued</label>
             <input type="date" value={formData.date_issued}
@@ -210,14 +267,14 @@ const InvoicePage = () => {
 
             <label>Terms</label>
               <select
-                value={formData.terms}
+                value={formData.invoice_terms}
                 onChange={(e) => {
                   const newTerms = e.target.value;
                   console.log(e.target.value);
                   const due = calculateDueDate(formData.date_issued, newTerms);
-                  setFormData({ ...formData, terms: newTerms, due_date: due });
+                  setFormData({ ...formData, invoice_terms: newTerms, invoice_due_date: due });
                 }}
-              >
+                >
                 <option> </option>
                 <option>Due end of the month</option>
                 <option>Net 15</option>
@@ -227,85 +284,109 @@ const InvoicePage = () => {
                 <option>Due on receipt</option>
                 <option>Due end of next month</option>
                 <option>Custom</option>
-              </select>
-            {errors.terms && <p className="error-text">{errors.terms}</p>}
+                </select>
+              {errors.terms && <p className="error-text">{errors.terms}</p>}
 
+              <label>Due Date</label>
+              <input type="date" value={formData.invoice_due_date} disabled />
 
-            <label>Due Date</label>
-            <input type="date" value={formData.due_date} disabled />
-
-
-            <h4>Item Table</h4>
-            <table className="item-table">
-            <thead>
-            <tr>
+              <h4>Item Table</h4>
+              <table className="item-table">
+              <thead>
+              <tr>
                 <th>ITEM DETAILS</th>
                 <th>QUANTITY</th>
                 <th>PRICE</th>
                 <th>AMOUNT</th>
-            </tr>
-            </thead>
-            <tbody>
-            {formData.items.map((item, index) => (
+              </tr>
+              </thead>
+              <tbody>
+              {formData.line_items.map((item, index) => (
+
                 <tr key={index}>
-                <td>
-                    <input
-                    type="text"
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={e => handleItemChange(index, 'description', e.target.value)}
-                    />
-                    {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
+                <td padding="0 12px">
+                  <input
+                  type="text"
+                  placeholder="Description"
+                  value={item.product_description}
+                  onChange={e => handleItemChange(index, 'product_description', e.target.value)}
+                  />
+                  {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
 
                 </td>
+                
                 <td>
-                    <input
-                    type="number"
-                    placeholder="Qty"
-                    value={item.qty}
-                    onChange={e => handleItemChange(index, 'qty', parseFloat(e.target.value))}
-                    />
-                    {errors[`item_qty_${index}`] && <p className="error-text">{errors[`item_qty_${index}`]}</p>}
+                  <input
+                  type="number"
+                  placeholder="Qty"
+                  value={item.line_items_qty}
+                  onChange={e => {
+                    const qty = parseFloat(e.target.value);
+                    handleItemChange(index, 'line_items_qty', qty);
+                    // Update line_items_total for this item
+                    handleItemChange(index, 'line_items_total', qty * (item.product_price || 0));
+                  }}
+                  />
+                  {errors[`item_qty_${index}`] && <p className="error-text">{errors[`item_qty_${index}`]}</p>}
                 </td>
                 <td>
-                    <input
-                    type="number"
-                    placeholder="Price"
-                    value={item.price}
-                    onChange={e => handleItemChange(index, 'price', parseFloat(e.target.value))}
-                    />
-                    {errors[`item_price_${index}`] && <p className="error-text">{errors[`item_price_${index}`]}</p>}
+                  <input
+                  type="number"
+                  placeholder="Price"
+                  value={item.product_price}
+                  onChange={e => {
+                    const price = parseFloat(e.target.value);
+                    handleItemChange(index, 'product_price', price);
+                    // Update line_items_total for this item
+                    handleItemChange(index, 'line_items_total', price * (item.line_items_qty || 0));
+                  }}
+                  />
+                  {errors[`item_price_${index}`] && <p className="error-text">{errors[`item_price_${index}`]}</p>}
                 </td>
 
                 <td>
-                    <strong>
-                    {(item.qty * item.price || 0).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                    })}
-                    </strong>
+                  <strong>
+                  {(item.line_items_qty * item.product_price || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                  </strong>
                 </td>
 
                 <td>
-                    <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        className="delete-btn"
-                    >
-                        ❌
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(index)}
+                    className="delete-btn"
+                  >
+                    ❌
+                  </button>
                 </td>
                 </tr>
-            ))}
-            </tbody>
-            </table>
+              ))}
+              </tbody>
+              </table>
+              <div>
+              <button type="button" onClick={addItem}>+ Add Item</button>
+              {/* Removed editingInvoiceId related code since it's commented out and not used */}
 
-            <button type="button" onClick={addItem}>+ Add Item</button>
-            {/* Removed editingInvoiceId related code since it's commented out and not used */}
+              <button type="submit">
 
-            <button type="submit">
-              {id ? 'Update Invoice' : 'Create Invoice'}
+                {id ? 'Update Invoice' : 'Create Invoice'}
 
-            </button>
+              </button>
+
+              <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
+                Total: {formData.invoice_total.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
+              </span>
+            {/* <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
+              Total: {formData.line_items.reduce((total, item) => total + (item.line_items_qty * item.product_price || 0), 0).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+              })}
+            </span> */}
+           
+            </div>
 
 
         </form>

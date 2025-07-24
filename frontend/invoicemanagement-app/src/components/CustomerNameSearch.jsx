@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 
 const CustomerNameSearch = ({ value, onCustomerSelect }) => {
   const navigate = useNavigate();
-  const [customers, setCustomers] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [text, setText] = useState(value || '');
+  const [customers, setCustomers] = useState([]);  // Store all customers fetched from API
+  const [suggestions, setSuggestions] = useState([]); // Store filtered suggestions based on input
+  const [text, setText] = useState(value || '');  // Controlled input value
   const [isDropdownVisible, setDropdownVisible] = useState(false);
-  const inputRef = useRef(null);
+  const inputRef = useRef(null); // 
 
   // Fetch customers on mount
   useEffect(() => {
@@ -25,13 +25,17 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
     fetchCustomers();
   }, []);
 
+
+  // can u define onCustomerSelect function to handle customer selection
+  
+
   // Show dropdown on input focus or search button click
   const openDropdown = () => {
     setDropdownVisible(true);
     // Show filtered suggestions based on current text or all if empty
-    if (text.trim() === '') {
+    if (text === ' ') {
       setSuggestions(customers);
-      onCustomerSelect({ name: '' }); // clear selected customer info
+      onCustomerSelect({ customer_name: ' ' }); // clear selected customer info
     } else {
       filterSuggestions(text);
     }
@@ -55,7 +59,7 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
   const filterSuggestions = (input) => {
     if (input.length > 0) {
       const regex = new RegExp(input, 'i');
-      const filtered = customers.filter((c) => regex.test(c.name));
+      const filtered = customers.filter((c) => regex.test(c.customer_name));
       setSuggestions(filtered);
     } else {
       setSuggestions(customers);
@@ -67,11 +71,11 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
     setText(input);
     filterSuggestions(input);
     setDropdownVisible(true);
-    onCustomerSelect({ name: input }); 
+    onCustomerSelect({ customer_name: input });
   };
 
   const onSuggestionClick = (customer) => {
-    setText(customer.name);
+    setText(customer.customer_name);
     setSuggestions([]);
     setDropdownVisible(false);
     onCustomerSelect(customer); 
@@ -80,7 +84,7 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
   // Handle search icon click
   const onSearchClick = () => {
     openDropdown();
-    if (text.trim() !== '') {
+    if (text !== '') {
       filterSuggestions(text);
     } else {
       setSuggestions(customers);
@@ -135,7 +139,7 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
         >
           {suggestions.map((cust) => (
             <li
-              key={cust.id}
+              key={cust.customer_id}
               className="suggestion-item"
               onClick={() => onSuggestionClick(cust)}
               style={{
@@ -162,20 +166,20 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
                   flexShrink: 0,
                 }}
               >
-                {cust.name[0].toUpperCase()}
+                {cust.customer_name[0].toUpperCase()}
               </div>
               <div className="suggestion-info" style={{ overflow: 'hidden' }}>
                 <div
                   className="suggestion-name"
                   style={{ fontWeight: '600', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}
                 >
-                  {cust.name}
+                  {cust.customer_name}
                 </div>
                 <div
                   className="suggestion-meta"
                   style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}
                 >
-                  {cust.email} | {cust.address}
+                  {cust.customer_email} | {cust.customer_address}
                 </div>
               </div>
             </li>

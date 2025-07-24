@@ -1,135 +1,104 @@
 from sqlmodel import SQLModel, Field, Relationship
-from pydantic import BaseModel, EmailStr, field_validator, Field
+from typing import Optional,List
+from pydantic import field_validator
 
-from pydantic import BaseModel
-from typing import Optional, List
+
 from datetime import date
 
 #Database models
 class Invoice(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    customer_name: str
-    address: str
-    phone: str
+    customer_id: int = Field(foreign_key="customer.customer_id")
     date_issued: date
-    total: float = 0.0
-    terms: str
-    due_date: date
-    items: List["InvoiceItem"] = Relationship(back_populates="invoice")
+    invoice_terms: str
+    invoice_due_date: date
+    line_items: List["LineItem"] = Relationship(back_populates="invoice", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Invoice.id == LineItem.invoice_id"})
+    invoice_total: float = 0.0
     invoice_status: str = Field(default="draft")
 
-    @field_validator("customer_name", "address", "phone", "date_issued", "terms", "due_date")
+    customer: Optional["Customer"] = Relationship(back_populates="invoices")  # many-to-one relationship with Customer
+    
+
+
+    @field_validator("date_issued", "invoice_terms", "invoice_due_date", "invoice_status")
     @classmethod
     def not_empty(cls, v):
-        if not v.strip():
+        if not v:
+            raise ValueError("This field cannot be empty")
+        return v
+    @field_validator("invoice_total")
+    @classmethod
+    def positive_total(cls, v):
+        if v is None or v < 0:
+            raise ValueError("Total must be a positive number")
+        return v
+    
+
+
+
+class LineItem(SQLModel, table=True):
+    lineitem_id: Optional[int] = Field(default=None, primary_key=True)
+    lineitem_qty: int = Field(..., gt=0, description="Quantity must be > 0")
+    lineitem_total: float = Field(..., gt=0, description="Total must be > 0")
+    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
+    invoice: Optional["Invoice"] = Relationship(back_populates="line_items")  # many-to-one relationship with Invoice
+    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id")
+
+    @field_validator("lineitem_qty")
+    @classmethod
+    def not_empty(cls, v):
+        if v is None or v < 0:
+            raise ValueError("This field cannot be empty or negative")
+        return v
+
+
+class Customer(SQLModel, table=True):
+    customer_id: Optional[int] = Field(default=None, primary_key=True)
+    customer_name: str
+    customer_address: str
+    customer_phone: str
+    customer_email: str = None
+
+    invoices: List["Invoice"] = Relationship(back_populates="customer")
+
+
+
+    @field_validator("customer_name", "customer_address")
+    @classmethod
+    def not_empty(cls, v):
+        if not v:
             raise ValueError("This field cannot be empty")
         return v
 
-    @field_validator("phone")
+    @field_validator("customer_phone")
     @classmethod
     def valid_phone(cls, v):
         if not v.isdigit() or len(v) != 10:
             raise ValueError("Phone number must be 10 digits")
         return v
 
-
-class InvoiceItem(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    description: str
-    qty: int = Field(..., gt=0, description="Quantity must be > 0")
-    price: float = Field(..., gt=0, description="Price must be > 0")
-    amount: float = Field(..., ge=0)
-    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
-    invoice: Optional[Invoice] = Relationship(back_populates="items") #many-to-one relationship with Invoice
-
-    @field_validator("description")
+    @field_validator("customer_email")
     @classmethod
-    def description_must_not_be_empty(cls, v):
-        if not v.strip():
-            raise ValueError("Item description cannot be empty")
+    def valid_email_format(cls, v):
+        if v and ("@" not in v or "." not in v):
+            raise ValueError("Invalid email format")
         return v
 
-class Customer(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str
-    address: str
-    phone: str
-    email: str = None
-    # invoices: List[Invoice] = Relationship(back_populates="customer")
+class Product(SQLModel, table=True):
+    product_id: Optional[int] = Field(default=None, primary_key=True)
+    product_description: str = Field(..., unique=True)
+    product_price: float
 
-class Item(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    description: str
-    qty: int
-    price: float
-    # invoices: List[InvoiceItem] = Relationship(back_populates="item")
+    @field_validator("product_description")
+    @classmethod
+    def not_empty(cls, v):
+        if not v:
+            raise ValueError("This field cannot be empty")
+        return v
 
-#request schemas
-class InvoiceItemRequest(BaseModel):
-    description: str
-    qty: int
-    price: float
-
-class InvoiceRequest(BaseModel):
-    customer_name: str
-    address: str
-    phone: str
-    date_issued: date
-    terms: str
-    due_date: date
-    invoice_status: Optional[str] = "draft"  # Default status
-    items: list[InvoiceItemRequest]
-
-class CustomerRequest(BaseModel):
-    name: str
-    address: str
-    phone: str
-    email: Optional[str] = None
-
-class ItemRequest(BaseModel):
-    description: str
-    qty: int
-    price: float
-
-#response schemas
-class InvoiceItemMinimalResponse(BaseModel):
-    description: str
-    qty: int
-    price: float
-    amount: float
-
-class InvoiceMinimalResponse(BaseModel):
-    id: int
-    customer_name: str
-    address: str
-    phone: str
-    date_issued: date
-    due_date: date
-    terms: str
-    total: float
-    invoice_status: str
-    items: list[InvoiceItemMinimalResponse]
-
-    class Config:
-        orm_mode = True
-
-class CustomerMinimalResponse(BaseModel):
-    id: int
-    name: str
-    address: str
-    phone: str
-    email: str
-
-class ItemMinimalResponse(BaseModel):
-    id: int
-    description: str
-    qty: int
-    price: float
-    amount: float
-
-    class Config:
-        orm_mode = True
-
-
-InvoiceItem.invoice = Relationship(back_populates="items")
-Invoice.update_forward_refs() # This is to solve the circular reference between Invoice and InvoiceItem
+    @field_validator("product_price")
+    @classmethod
+    def positive_price(cls, v):
+        if v is None or v < 0:
+            raise ValueError("Price must be a positive number")
+        return v
