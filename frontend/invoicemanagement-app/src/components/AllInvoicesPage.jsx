@@ -13,6 +13,7 @@ const AllInvoicesPage = () => {
       const response = await api.get('/invoices');
       // console.log('Fetched Invoices:', response.data);
       setInvoices(response.data);
+      console.log('Invoices set:', response.data);
     } catch (error) {
       console.error('Failed to fetch invoices', error);
     }
@@ -45,15 +46,15 @@ const AllInvoicesPage = () => {
             <tr key={invoice.id}>
               <td>{invoice.id}</td>
               <td>{invoice.customer_name}</td>
-              <td>{invoice.phone}</td>
-              <td>{invoice.address}</td>
+              <td>{invoice.customer_phone}</td>
+              <td>{invoice.customer_address}</td>
               <td>{invoice.date_issued}</td>
-              <td>${invoice.total}</td>
+              <td>${invoice.invoice_total}</td>
               <td>
                 <ul>
-                  {invoice.items.map((item, idx) => (
+                  {invoice.line_items.map((item, idx) => (
                     <li key={idx}>
-                      {item.description}: ${item.amount}
+                      {item.product_id}: ${item.lineitem_total}
                     </li>
                   ))}
                 </ul>

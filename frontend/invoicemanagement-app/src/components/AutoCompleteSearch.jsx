@@ -37,11 +37,13 @@ const AutocompleteSearch = ({ fetchUrl, displayFields = [], placeholder = "Searc
   const handleChange = (e) => {
     const input = e.target.value;
     setText(input);
-    if (!input) {
-      setSuggestions([]);
-      setShowDropdown(false);
+
+    if (!input.trim()) {
+      setSuggestions(data);
+      setShowDropdown(true);
       return;
     }
+
     const regex = new RegExp(input, 'i');
     const filtered = data.filter(item => 
       displayFields.some(field => regex.test(item[field] || ""))
@@ -49,6 +51,13 @@ const AutocompleteSearch = ({ fetchUrl, displayFields = [], placeholder = "Searc
     setSuggestions(filtered);
     setShowDropdown(true);
   };
+  
+  const handleInputClick = () => {
+    if (data.length > 0) {
+      setSuggestions(data); // Show all items when clicking
+        setShowDropdown(true);
+      }
+    };
 
   const handleSelect = (item) => {
     setText(displayFields.map(f => item[f]).join(" | "));
@@ -63,7 +72,7 @@ const AutocompleteSearch = ({ fetchUrl, displayFields = [], placeholder = "Searc
         placeholder={placeholder}
         value={text}
         onChange={handleChange}
-        onClick={() => setShowDropdown(true)}
+        onClick={handleInputClick}
       />
       {showDropdown && suggestions.length > 0 && (
         <ul className="suggestions-list">

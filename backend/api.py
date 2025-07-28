@@ -4,17 +4,25 @@ from datetime import date
 
 #request schemas
 class LineItemRequest(BaseModel):
-    product_id: int
-    lineitem_qty: int
-    lineitem_total: float
+    product_description: str
+    line_items_qty: int
+    product_price: float
+    line_items_total: float
+
 
 class InvoiceRequest(BaseModel):
     customer_id: int
+    customer_name: str
+    customer_address: str
+    customer_phone: str
     date_issued: date
     invoice_terms: str
     invoice_due_date: date
     invoice_status: Optional[str] = "draft"  # Default status
+    invoice_total: float
     line_items: List[LineItemRequest]
+
+
 
 class CustomerRequest(BaseModel):
     customer_name: str
@@ -23,6 +31,7 @@ class CustomerRequest(BaseModel):
     customer_email: Optional[str] = None
 
 class ProductRequest(BaseModel):
+    product_id: int = None
     product_description: str
     product_price: float
 
@@ -31,6 +40,8 @@ class LineItemMinimalResponse(BaseModel):
     product_id: int
     lineitem_qty: int
     lineitem_total: float
+    product_description: str
+    product_price: float
 
 class InvoiceMinimalResponse(BaseModel):
     id: int

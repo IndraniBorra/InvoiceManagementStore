@@ -1,0 +1,320 @@
+/* components_css/GenericAutoComplete.css */
+
+/* Main Container */
+.generic-autocomplete {
+  position: relative;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Input Wrapper */
+.autocomplete-input-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* Input Field */
+.autocomplete-input {
+  flex-grow: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.autocomplete-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.autocomplete-input.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f8f9fa;
+}
+
+/* Search Button */
+.autocomplete-search-btn {
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 18px;
+  padding: 0 8px;
+  transition: opacity 0.2s ease;
+  color: #6c757d;
+}
+
+.autocomplete-search-btn:hover:not(.disabled) {
+  color: #007bff;
+}
+
+.autocomplete-search-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Loading State */
+.autocomplete-loading {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #6c757d;
+  font-style: italic;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+}
+
+/* Error State */
+.autocomplete-error {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #dc3545;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+}
+
+/* Suggestions Dropdown */
+.autocomplete-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  width: 100%;
+  overflow-y: auto;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  list-style: none;
+  margin: 0;
+  max-height: 220px; /* Default max height */
+}
+
+/* Individual Suggestion Item */
+.autocomplete-suggestion {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.autocomplete-suggestion:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-suggestion:hover {
+  background-color: #f8f9fa;
+}
+
+.autocomplete-suggestion:active {
+  background-color: #e9ecef;
+}
+
+/* Avatar */
+.suggestion-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #6c757d;
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* Suggestion Content */
+.suggestion-content {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0; /* Allows text truncation */
+}
+
+.suggestion-main {
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  color: #212529;
+}
+
+.suggestion-meta {
+  font-size: 12px;
+  color: #6c757d;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+/* No Results */
+.autocomplete-no-results {
+  padding: 12px;
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+  border-bottom: none !important;
+}
+
+/* Custom Actions */
+.autocomplete-custom-action {
+  padding: 10px 12px !important;
+  cursor: pointer;
+  font-weight: 600;
+  color: #007bff;
+  border-top: 1px solid #eee !important;
+  border-bottom: none !important;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.autocomplete-custom-action:hover {
+  background-color: #f8f9fa;
+}
+
+.action-icon {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+/* Scrollbar Styling */
+.autocomplete-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .autocomplete-suggestions {
+    max-height: 180px;
+  }
+  
+  .autocomplete-suggestion {
+    padding: 10px 8px;
+  }
+  
+  .suggestion-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    margin-right: 8px;
+  }
+  
+  .suggestion-main {
+    font-size: 14px;
+  }
+  
+  .suggestion-meta {
+    font-size: 11px;
+  }
+}
+
+/* Dark Theme Support */
+@media (prefers-color-scheme: dark) {
+  .autocomplete-input {
+    background-color: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .autocomplete-input:focus {
+    border-color: #63b3ed;
+    box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.25);
+  }
+  
+  .autocomplete-suggestions {
+    background-color: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .autocomplete-suggestion {
+    border-bottom-color: #4a5568;
+  }
+  
+  .autocomplete-suggestion:hover {
+    background-color: #4a5568;
+  }
+  
+  .suggestion-main {
+    color: #e2e8f0;
+  }
+  
+  .suggestion-meta {
+    color: #a0aec0;
+  }
+  
+  .autocomplete-no-results {
+    color: #a0aec0;
+  }
+}
+
+/* Animation for dropdown appearance */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.autocomplete-suggestions {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Focus indicators for accessibility */
+.autocomplete-suggestion:focus {
+  background-color: #e3f2fd;
+  outline: 2px solid #2196f3;
+  outline-offset: -2px;
+}
+
+/* Custom theme classes */
+.generic-autocomplete.theme-compact .autocomplete-input {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.generic-autocomplete.theme-compact .autocomplete-suggestion {
+  padding: 6px 10px;
+}
+
+.generic-autocomplete.theme-large .autocomplete-input {
+  padding: 12px 16px;
+  font-size: 16px;
+}
+
+.generic-autocomplete.theme-large .autocomplete-suggestion {
+  padding: 12px 16px;
+}

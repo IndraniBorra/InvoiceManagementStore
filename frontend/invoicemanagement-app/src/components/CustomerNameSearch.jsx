@@ -72,7 +72,7 @@ const CustomerNameSearch = ({ value, onCustomerSelect }) => {
     filterSuggestions(input);
     setDropdownVisible(true);
     onCustomerSelect({ customer_name: input });
-  };
+  }; //
 
   const onSuggestionClick = (customer) => {
     setText(customer.customer_name);

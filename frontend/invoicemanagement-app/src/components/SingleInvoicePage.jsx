@@ -51,7 +51,7 @@ const SingleInvoicePage = () => {
   }
 
   const calculateSubtotal = () =>
-    invoice.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2);
+    invoice.line_items.reduce((sum, item) => sum + item.lineitem_total, 0).toFixed(2);
 
   return (
     <div >
@@ -69,22 +69,23 @@ const SingleInvoicePage = () => {
           <div className="invoice-header">
             <div className="left-info">
               <h2>{invoice.customer_name}</h2>
-              <p>{invoice.address}</p>
-              <p><b>PNo:</b> {invoice.phone}</p>
+              <p>{invoice.customer_address}</p>
+              <p><b>PNo:</b> {invoice.customer_phone}</p>
             </div>
             <div className="right-info">
               <img src="/logo.png" alt="Logo" className="logo" />
               <h3>INVOICE</h3>
               <p><strong># INV-{String(invoice.id).padStart(6, '0')}</strong></p>
               <p><strong>Balance Due:</strong></p>
-              <h2>${invoice.total.toFixed(2)}</h2>
+              <h2>${invoice.invoice_total.toFixed(2)}</h2>
             </div>
           </div>
 
+
           <div className="invoice-details">
             <p><strong>Invoice Date:</strong> {new Date(invoice.date_issued).toLocaleDateString()}</p>
-            <p><strong>Terms:</strong> {invoice.terms}</p>
-            <p><strong>Due Date:</strong> {invoice.due_date}</p>
+            <p><strong>Terms:</strong> {invoice.invoice_terms}</p>
+            <p><strong>Due Date:</strong> {invoice.invoice_due_date}</p>
           </div>
 
           <table className="invoice-table">
@@ -98,23 +99,31 @@ const SingleInvoicePage = () => {
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td>{idx + 1}</td>
-                  <td>{item.description}</td>
-                  <td>{item.qty}</td>
-                  {/* <td>{item.price}</td> */}
-                  <td>${item.price}</td>
-                  <td>${item.amount.toFixed(2)}</td>
+
+              {invoice.line_items.map((item, id
+              ) => (
+                <tr key={id}>
+                  <td>{item.product_id}</td>
+                  <td>{item.product_description}</td>
+                  <td>{item.lineitem_qty}</td>
+                  <td>${item.product_price}</td>
+                  <td>${item.lineitem_total}</td>
                 </tr>
               ))}
+              {/* <ul>
+                  {invoice.line_items.map((item, idx) => (
+                    <li key={idx}>
+                      {item.product_id}: ${item.lineitem_total}
+                    </li>
+                  ))}
+                </ul> */}
             </tbody>
           </table>
 
           <div className="totals">
             <p><strong>Sub Total:</strong> ${calculateSubtotal()}</p>
-            <p><strong>Total:</strong> ${invoice.total.toFixed(2)}</p>
-            <p><strong>Balance Due:</strong> ${invoice.total.toFixed(2)}</p>
+            <p><strong>Total:</strong> ${invoice.invoice_total.toFixed(2)}</p>
+            <p><strong>Balance Due:</strong> ${invoice.invoice_total.toFixed(2)}</p>
           </div>
 
           <div className="footer-message">

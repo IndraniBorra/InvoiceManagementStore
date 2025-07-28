@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import CustomerNameSearch from './CustomerNameSearch';
 import AutocompleteSearch from './AutoCompleteSearch';
+import GenericAutoComplete from './GenericAutoComplete';
 import LineItem from './LineItem';
 
 
@@ -12,7 +13,8 @@ const InvoicePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [errors, setErrors] = useState({});
-  const [formData, setFormData] = useState({    // this state will help us to store the form data for creating a new invoice
+  const [formData, setFormData] = useState({
+    customer_id: null,  // this state will help us to store the form data for creating a new invoice
     customer_name: '',
     customer_address: '',
     customer_phone: '',
@@ -21,7 +23,13 @@ const InvoicePage = () => {
     invoice_due_date: '' ,// This will be calculated based on terms
     invoice_status: 'draft', // Default status
     invoice_total: 0, // Total amount of the invoice
-    line_items: [{ product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }], // Default line item
+    line_items: [{ 
+      product_id: null,
+      product_description: '', 
+      line_items_qty: 1, 
+      product_price: 0, 
+      line_items_total: 0 
+    }], // Default line item
   });
 
 
@@ -30,7 +38,7 @@ const InvoicePage = () => {
   // Function to validate form data
   const validateForm = () => {
     const newErrors = {};
-
+    if (!formData.customer_id) newErrors.customer_id = "Please select a customer from the search results.";
     if (!formData.customer_name) newErrors.customer_name = "Customer name is required.";
     if (!formData.customer_address) newErrors.customer_address = "Address is required.";
     if (!formData.customer_phone) {
@@ -42,13 +50,15 @@ const InvoicePage = () => {
     if (!formData.invoice_terms) newErrors.invoice_terms = "Terms are required.";
 
     formData.line_items.forEach((item, index) => {
-      if (item.line_items_qty <= 0) newErrors[`item_qty_${index}`] = "Quantity must be greater than 0.";
 
+      // if (!item.product_id) newErrors[`item_id_${index}`] = "Product ID is required.";
+      if (item.line_items_qty <= 0) newErrors[`item_qty_${index}`] = "Quantity must be greater than 0.";
       if (!item.product_description) newErrors[`item_desc_${index}`] = "Description is required.";
       if (item.product_price <= 0) newErrors[`item_price_${index}`] = "Price must be greater than 0.";
     });
 
     setErrors(newErrors);
+    console.log("Validation Errors:", newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -161,6 +171,12 @@ const InvoicePage = () => {
       return;
     }
 
+    // Check if customer is selected
+    if (!formData.customer_id) {
+      alert("Please select a customer from the search results.");
+      return;
+    }
+
     // Log the exact data being sent
     console.log("=== FRONTEND DATA BEING SENT ===");
     console.log(JSON.stringify(formData, null, 2));
@@ -187,6 +203,7 @@ const InvoicePage = () => {
         }
       }
       setFormData({
+        customer_id: '',
         customer_name: '',
         customer_address: '',
         customer_phone: '',
@@ -219,17 +236,20 @@ const InvoicePage = () => {
             <label>Customer Name</label>
             {/* <input type="text" placeholder="Customer Name" value={formData.customer_name}
                 onChange={e => setFormData({ ...formData, customer_name: e.target.value, searchCustomerName: e.target.value })} /> */}
-            <CustomerNameSearch
+            {/* <CustomerNameSearch
               value={formData.customer_name}
               onCustomerSelect={(selected) => {
+                console.log("Selected Customer:", selected);
+                console.log(JSON.stringify(selected, null, 2));
                 setFormData({
                   ...formData,
+                  customer_id: selected.id, // Store customer ID if available
                   customer_name: selected.customer_name || '',
                   customer_address: selected.customer_address || '',
                   customer_phone: selected.customer_phone || '',
                 });
               }}
-            />
+            /> */}
 
 
 
@@ -239,14 +259,47 @@ const InvoicePage = () => {
               placeholder="Search customer"
               onSelect={(selectedCustomer) => {
                 console.log("Selected Customer:", selectedCustomer);
+                console.log(JSON.stringify(selectedCustomer, null, 2));
                 setFormData({
                   ...formData,
+                  customer_id: selectedCustomer.customer_id,
                   customer_name: selectedCustomer.customer_name || '',
                   address: selectedCustomer.customer_address || '',
                   phone: selectedCustomer.customer_phone || '',
                 });
               }}
             />  */}
+
+           
+            <GenericAutoComplete
+              fetchUrl="/customers"
+              displayFields={['customer_name']}
+              searchFields={['customer_name', 'customer_email']}
+              metaFields={['customer_email']}
+              placeholder="Search or Create a customer"
+              showAvatar={true}
+              avatarField="customer_name"
+              className="theme-large" // Apply custom theme
+              customActions={[
+                {
+                  label: 'New Customer',
+                  icon: '➕',
+                  color: '#28a745',
+                  onClick: () => navigate('/customer')
+                }
+              ]}
+              onSelect={(customer, isComplete) => {
+                if (isComplete) {
+                  setFormData({
+                    ...formData,
+                    customer_id: customer.customer_id,
+                    customer_name: customer.customer_name,
+                    customer_address: customer.customer_address,
+                    customer_phone: customer.customer_phone,
+                  });
+                }
+              }}
+            />
 
             {errors.customer_name && <p className="error-text">{errors.customer_name}</p>}
 
@@ -305,14 +358,36 @@ const InvoicePage = () => {
 
                 <tr key={index}>
                 <td padding="0 12px">
-                  <input
-                  type="text"
-                  placeholder="Description"
-                  value={item.product_description}
-                  onChange={e => handleItemChange(index, 'product_description', e.target.value)}
-                  />
-                  {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
-
+                  <GenericAutoComplete
+                      fetchUrl="/products"
+                      displayFields={['product_description']}
+                      searchFields={['product_description', 'product_code', 'product_category']}
+                      metaFields={['product_code', 'product_price']}
+                      placeholder="Search products..."
+                      showAvatar={false}
+                      className="product-search-inline"
+                      maxHeight="180px"
+                      value={item.product_description}
+                      minCharsToSearch={1}
+                      onSelect={(product, isComplete) => {
+                        if (isComplete) {
+                          console.log("Selected product:", product); // Debug log
+                          // User selected a product from dropdown
+                          handleItemChange(index, 'product_id', product.product_id);    // ✅ Set product_id
+                          handleItemChange(index, 'product_description', product.product_description);
+                          handleItemChange(index, 'product_price', product.product_price);
+                          
+                          // Auto-calculate line total with current quantity
+                          const currentQty = item.line_items_qty || 1;
+                          const lineTotal = currentQty * product.product_price;
+                          handleItemChange(index, 'line_items_total', lineTotal);
+                        } else {
+                          // User is typing - update description only
+                          handleItemChange(index, 'product_description', product.product_description || '');
+                        }
+                      }}
+                    />
+                    {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
                 </td>
                 
                 <td>
@@ -321,7 +396,7 @@ const InvoicePage = () => {
                   placeholder="Qty"
                   value={item.line_items_qty}
                   onChange={e => {
-                    const qty = parseFloat(e.target.value);
+                    const qty = e.target.value;
                     handleItemChange(index, 'line_items_qty', qty);
                     // Update line_items_total for this item
                     handleItemChange(index, 'line_items_total', qty * (item.product_price || 0));
@@ -335,7 +410,7 @@ const InvoicePage = () => {
                   placeholder="Price"
                   value={item.product_price}
                   onChange={e => {
-                    const price = parseFloat(e.target.value);
+                    const price = e.target.value;
                     handleItemChange(index, 'product_price', price);
                     // Update line_items_total for this item
                     handleItemChange(index, 'line_items_total', price * (item.line_items_qty || 0));
@@ -364,6 +439,10 @@ const InvoicePage = () => {
                 </tr>
               ))}
               </tbody>
+             
+              <td padding="0 12px">
+                {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
+              </td>
               </table>
               <div>
               <button type="button" onClick={addItem}>+ Add Item</button>
@@ -375,16 +454,16 @@ const InvoicePage = () => {
 
               </button>
 
-              <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
+              {/* <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
                 Total: {formData.invoice_total.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                 })}
-              </span>
-            {/* <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
+              </span> */}
+            <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
               Total: {formData.line_items.reduce((total, item) => total + (item.line_items_qty * item.product_price || 0), 0).toLocaleString(undefined, {
                 minimumFractionDigits: 2,
               })}
-            </span> */}
+            </span>
            
             </div>
 

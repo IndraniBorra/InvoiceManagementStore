@@ -109,7 +109,7 @@ const ProductPage = () => {
                         onChange={(e) => setFormData({ ...formData, product_price: e.target.value })}
                         required
                     />
-
+        
                     <div className="form-actions">
                         <button type="submit" className="btn submit-btn">
                             {editingId ? 'Update Product' : 'Create Product'}
@@ -132,6 +132,7 @@ const ProductPage = () => {
                                 <th>Description</th>
                                 <th>Price</th>
                                 <th>Actions</th>
+                                
                             </tr>
                         </thead>
                         <tbody>

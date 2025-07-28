@@ -44,9 +44,11 @@ def calculate_due_date(date_issued: date, terms: str) -> date:
 def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_session)):
 
     customer = session.get(Customer, invoice_data.customer_id)
+   
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-
+    
+    
     due_date = calculate_due_date(invoice_data.date_issued, invoice_data.invoice_terms)
     
     invoice = Invoice(
@@ -54,13 +56,17 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         date_issued=invoice_data.date_issued,
         invoice_terms=invoice_data.invoice_terms,
         invoice_due_date=due_date,
+        invoice_total=invoice_data.invoice_total,
         invoice_status=invoice_data.invoice_status,
         customer=customer,
         line_items=[
             LineItem(
                 product_id=item.product_id,
-                lineitem_qty=item.lineitem_qty,
-                lineitem_total=item.lineitem_total
+                product_description=item.product_description,
+                product_price=item.product_price,
+                lineitem_qty=item.line_items_qty,
+                lineitem_total=item.line_items_total
+                
             )
             for item in invoice_data.line_items
         ]
@@ -87,6 +93,8 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         line_items=[
             LineItemMinimalResponse(
                 product_id=item.product_id,
+                product_description=item.product.product_description,
+                product_price=item.product.product_price,
                 lineitem_qty=item.lineitem_qty,
                 lineitem_total=item.lineitem_total
             )
@@ -119,6 +127,8 @@ def get_all_invoices(session: Session = Depends(get_session)):
             line_items=[
                 LineItemMinimalResponse(
                     product_id=item.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price,
                     lineitem_qty=item.lineitem_qty,
                     lineitem_total=item.lineitem_total
                 )
@@ -133,34 +143,36 @@ def get_all_invoices(session: Session = Depends(get_session)):
 @router.get("/invoice/{invoice_id}", response_model=InvoiceMinimalResponse)
 def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
     invoice = session.get(Invoice, invoice_id)
+    # invoices = session.exec(select(Invoice)).where(Invoice.id == invoice_id).first()
+    print("Invoice:", invoice)
     print("Invoice ID:", invoice_id)
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
+    # if not invoices:
+    #     raise HTTPException(status_code=404, detail="Invoice not found")
 
-    response = InvoiceMinimalResponse(
+    return InvoiceMinimalResponse(
         id=invoice.id,
-        customer_name=invoice.customer_name,
-        address=invoice.address,
-        phone=invoice.phone,
+        customer_id=invoice.customer_id,
+        customer_name=invoice.customer.customer_name,
+        customer_address=invoice.customer.customer_address,
+        customer_phone=invoice.customer.customer_phone,
         date_issued=invoice.date_issued,
-        due_date=invoice.due_date,
-        terms=invoice.terms,
+        invoice_due_date=invoice.invoice_due_date,
+        invoice_terms=invoice.invoice_terms,
         invoice_status=invoice.invoice_status,
-        total=invoice.total,
-        items=[
+        invoice_total=invoice.invoice_total,
+        line_items=[
             LineItemMinimalResponse(
-                description=item.description,
-                qty=item.qty , # Include quantity if needed
-                price=item.price , # Include price if needed
-                amount=item.amount
-
+                product_id=item.product_id,
+                product_description=item.product.product_description,
+                product_price=item.product.product_price,
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
             )
-            for item in invoice.items
+            for item in invoice.line_items
         ]
     )
-    print("Response:", response)
-    return response
-    
+
+
 
 #Delete: Delete a specific invoice by ID
 @router.delete("/invoice/{invoice_id}")

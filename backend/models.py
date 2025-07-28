@@ -43,6 +43,7 @@ class LineItem(SQLModel, table=True):
     invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
     invoice: Optional["Invoice"] = Relationship(back_populates="line_items")  # many-to-one relationship with Invoice
     product_id: Optional[int] = Field(default=None, foreign_key="product.product_id")
+    product: Optional["Product"] = Relationship(back_populates="line_items")  # many-to-one relationship with Product
 
     @field_validator("lineitem_qty")
     @classmethod
@@ -88,6 +89,7 @@ class Product(SQLModel, table=True):
     product_id: Optional[int] = Field(default=None, primary_key=True)
     product_description: str = Field(..., unique=True)
     product_price: float
+    line_items: List["LineItem"] = Relationship(back_populates="product", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Product.product_id == LineItem.product_id"})
 
     @field_validator("product_description")
     @classmethod
