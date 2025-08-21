@@ -344,6 +344,7 @@ const InvoicePage = () => {
               <input type="date" value={formData.invoice_due_date} disabled />
 
               <h4>Item Table</h4>
+              <div className="item-table-scroll">
               <table className="item-table">
               <thead>
               <tr>
@@ -444,6 +445,7 @@ const InvoicePage = () => {
                 {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
               </td>
               </table>
+              </div>
               <div>
               <button type="button" onClick={addItem}>+ Add Item</button>
               {/* Removed editingInvoiceId related code since it's commented out and not used */}
