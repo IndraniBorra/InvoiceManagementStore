@@ -61,7 +61,8 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         customer=customer,
         line_items=[
             LineItem(
-                product_id=item.product_id,
+
+                product_id=item.product_id,  # Use product_id from LineItemRequest
                 product_description=item.product_description,
                 product_price=item.product_price,
                 lineitem_qty=item.line_items_qty,

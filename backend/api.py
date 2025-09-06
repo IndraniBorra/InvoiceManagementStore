@@ -4,6 +4,7 @@ from datetime import date
 
 #request schemas
 class LineItemRequest(BaseModel):
+    product_id: Optional[int] = None  # Optional field for product ID
     product_description: str
     line_items_qty: int
     product_price: float

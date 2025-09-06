@@ -104,6 +104,7 @@ const InvoicePage = () => {
       const invoice = response.data;
 
       const editData = {
+        customer_id: invoice.customer_id,
         customer_name: invoice.customer_name,
         customer_address: invoice.customer_address,
         customer_phone: invoice.customer_phone,
@@ -111,6 +112,7 @@ const InvoicePage = () => {
         invoice_terms: invoice.terms || 'Due end of the month',
         invoice_due_date: invoice.due_date || '',
         line_items: invoice.items.map(item => ({
+          product_id: item.product_id || null,
           product_description: item.product_description || item.line_items_description || '',
           line_items_qty: item.line_items_qty || 1,
           product_price: item.product_price || item.line_items_price || 0,
@@ -142,7 +144,7 @@ const InvoicePage = () => {
 
   // Add new item to invoice
   const addItem = () => {
-    const newItems = [...formData.line_items, { product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }];
+    const newItems = [...formData.line_items, { product_id: null, product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }];
     const newTotal = newItems.reduce(
       (total, item) => total + (item.line_items_qty * item.product_price || 0),
       0
@@ -155,6 +157,11 @@ const InvoicePage = () => {
   };
   // Remove item from invoice
   const removeItem = (index) => {
+
+    if (formData.line_items.length === 1) {
+        alert("At least one line item is required.");
+        return;
+      }
     const updatedItems = formData.line_items.filter((_, i) => i !== index);
     const newTotal = updatedItems.reduce(
       (total, item) => total + (item.line_items_qty * item.product_price || 0),
@@ -212,12 +219,32 @@ const InvoicePage = () => {
         invoice_due_date: '' ,// This will be calculated based on terms
         invoice_status: 'draft', // Default status
         invoice_total: 0, // Total amount of the invoice
-        line_items: [{ product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }], // Default line item
+        line_items: [{ 
+          product_id: null,
+          product_description: '', 
+          line_items_qty: 1, 
+          product_price: 0, 
+          line_items_total: 0 
+        }], // Default line item
       });
       navigate('/invoices');
     } catch (error) {
-      console.error('Failed to submit invoice', error);
-      alert('Error submitting invoice');
+      console.error('=== ERROR DETAILS ===');
+      console.error('Status:', error.response?.status);
+      console.error('Response:', error.response?.data);
+      
+      if (error.response?.data?.detail) {
+        if (Array.isArray(error.response.data.detail)) {
+          const errors = error.response.data.detail.map(err => 
+            `${err.loc.join('.')}: ${err.msg}`
+          ).join('\n');
+          alert(`Validation Errors:\n${errors}`);
+        } else {
+          alert(`Error: ${error.response.data.detail}`);
+        }
+      } else {
+        alert('Error submitting invoice: ' + error.message);
+      }
     }
   };
 
@@ -234,41 +261,6 @@ const InvoicePage = () => {
         <form onSubmit={handleSubmit}>
 
             <label>Customer Name</label>
-            {/* <input type="text" placeholder="Customer Name" value={formData.customer_name}
-                onChange={e => setFormData({ ...formData, customer_name: e.target.value, searchCustomerName: e.target.value })} /> */}
-            {/* <CustomerNameSearch
-              value={formData.customer_name}
-              onCustomerSelect={(selected) => {
-                console.log("Selected Customer:", selected);
-                console.log(JSON.stringify(selected, null, 2));
-                setFormData({
-                  ...formData,
-                  customer_id: selected.id, // Store customer ID if available
-                  customer_name: selected.customer_name || '',
-                  customer_address: selected.customer_address || '',
-                  customer_phone: selected.customer_phone || '',
-                });
-              }}
-            /> */}
-
-
-
-            {/* <AutocompleteSearch
-              fetchUrl="http://localhost:8000/customers"
-              displayFields={['customer_name']}
-              placeholder="Search customer"
-              onSelect={(selectedCustomer) => {
-                console.log("Selected Customer:", selectedCustomer);
-                console.log(JSON.stringify(selectedCustomer, null, 2));
-                setFormData({
-                  ...formData,
-                  customer_id: selectedCustomer.customer_id,
-                  customer_name: selectedCustomer.customer_name || '',
-                  address: selectedCustomer.customer_address || '',
-                  phone: selectedCustomer.customer_phone || '',
-                });
-              }}
-            />  */}
 
            
             <GenericAutoComplete
@@ -344,6 +336,7 @@ const InvoicePage = () => {
               <input type="date" value={formData.invoice_due_date} disabled />
 
               <h4>Item Table</h4>
+              <div className = "item-table-scroll">
               <table className="item-table">
               <thead>
               <tr>
@@ -361,8 +354,8 @@ const InvoicePage = () => {
                   <GenericAutoComplete
                       fetchUrl="/products"
                       displayFields={['product_description']}
-                      searchFields={['product_description', 'product_code', 'product_category']}
-                      metaFields={['product_code', 'product_price']}
+                      searchFields={['product_description']}
+                      metaFields={['product_price']}
                       placeholder="Search products..."
                       showAvatar={false}
                       className="product-search-inline"
@@ -440,10 +433,11 @@ const InvoicePage = () => {
               ))}
               </tbody>
              
-              <td padding="0 12px">
+              {/* <td padding="0 12px">
                 {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
-              </td>
+              </td> */}
               </table>
+              </div>
               <div>
               <button type="button" onClick={addItem}>+ Add Item</button>
               {/* Removed editingInvoiceId related code since it's commented out and not used */}
@@ -454,16 +448,11 @@ const InvoicePage = () => {
 
               </button>
 
-              {/* <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
-                Total: {formData.invoice_total.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                })}
-              </span> */}
-            <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
-              Total: {formData.line_items.reduce((total, item) => total + (item.line_items_qty * item.product_price || 0), 0).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-              })}
-            </span>
+                <span style={{ marginLeft: '20px', fontWeight: 'bold' }}>
+                  Total: {formData.line_items.reduce((total, item) => total + (item.line_items_qty * item.product_price || 0), 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </span>
            
             </div>
 

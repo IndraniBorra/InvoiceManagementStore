@@ -2,163 +2,198 @@
 
 /* General reset and layout */
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background-color: #f4f6f8;
-  color: #333;
+margin: 0;
+padding: 0;
+font-family: 'Segoe UI', sans-serif;
+background-color: #f4f6f8;
+color: #333;
 }
 
 /* Main container */
 .container {
-  max-width: 900px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+max-width: 900px;
+margin: 2rem auto;
+padding: 2rem;
+background: white;
+border-radius: 8px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 /* Headings */
 h1, h2, h4 {
-  text-align: center;
-  color: #2c3e50;
+text-align: center;
+color: #2c3e50;
 }
 
 /* Form styles */
 form {
-  margin-bottom: 2rem;
+margin-bottom: 2rem;
 }
 
 form input {
-  width: 100%;
-  padding: 0.6rem;
-  margin-bottom: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 1rem;
+width: 100%;
+padding: 0.6rem;
+margin-bottom: 1rem;
+border: 1px solid #ccc;
+border-radius: 5px;
+font-size: 1rem;
 }
 
 /* Form buttons */
 form button {
-  background-color: #007bff;
-  color: white;
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-right: 0.5rem;
-  font-size: 1rem;
+background-color: #007bff;
+color: white;
+padding: 0.6rem 1.2rem;
+border: none;
+border-radius: 4px;
+cursor: pointer;
+margin-right: 0.5rem;
+font-size: 1rem;
 }
 
 form button:hover {
-  background-color: #0056b3;
+background-color: #0056b3;
 }
 
 /* Standard table (for invoice list) */
 table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
+width: 100%;
+border-collapse: collapse;
+margin-top: 1rem;
 }
 
 th, td {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  text-align: left;
-  font-size: 0.95rem;
+padding: 0.75rem;
+border: 1px solid #ddd;
+text-align: left;
+font-size: 0.95rem;
 }
 
 th {
-  background-color: #f0f0f0;
-  font-weight: bold;
-  color: #333;
+background-color: #f0f0f0;
+font-weight: bold;
+color: #333;
 }
 
 /* Item input table styling */
 .item-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  overflow: hidden;
+width: 100%;
+border-collapse: collapse;
+margin-top: 1rem;
+border: 1px solid #e0e0e0;
+border-radius: 6px;
+overflow: hidden;
+}
+
+.item-table-scroll {
+max-height: 320px;
+overflow-x: hidden;
+overflow-y: auto;
 }
 
 .item-table th {
-  background-color: #f9f9fb;
-  color: #2c2c2c;
-  font-weight: 600;
-  padding: 0.75rem;
-  text-align: left;
+background-color: #f9f9fb;
+color: #2c2c2c;
+font-weight: 600;
+padding: 0.75rem;
+text-align: left;
 }
 
 .item-table td {
-  padding: 0.75rem;
-  border-top: 1px solid #f0f0f0;
-  vertical-align: middle;
+position: relative;
+padding: 0.75rem;
+border-top: 1px solid #f0f0f0;
+vertical-align: middle;
 }
 
 .item-table input {
-  width: 92%;
-  padding: 0.4rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.95rem;
+width: 92%;
+padding: 0.4rem;
+border: 1px solid #ccc;
+border-radius: 4px;
+font-size: 0.95rem;
 }
 
 .item-table td strong {
-  font-weight: bold;
-  color: #000;
+font-weight: bold;
+color: #000;
 }
 
 .delete-btn {
-  background: transparent;
-  border: none;
-  color: #d11a2a;
-  font-size: 0.75rem;
-  cursor: pointer;
+background: transparent;
+border: none;
+color: #d11a2a;
+font-size: 0.75rem;
+cursor: pointer;
 }
 
 .delete-btn:hover {
-  color: #a30000;
+color: #a30000;
 }
 
 .error-text {
-  color: red;
-  font-size: 13px;
-  margin-top: 4px;
+color: red;
+font-size: 13px;
+margin-top: 4px;
 }
 
 /* Unordered list inside table cell */
 ul {
-  margin: 0;
-  padding-left: 1.2rem;
+margin: 0;
+padding-left: 1.2rem;
 }
+
+
+.autocomplete-dropdown {
+  position: absolute; /* ensures it floats */
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 200px; /* or match input width */
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  z-index: 1000; /* makes it appear above table */
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.autocomplete-item:hover {
+  background-color: #f1f1f1;
+}
+
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .container {
-    padding: 1rem;
+
+.autocomplete-dropdown {
+    width: 100%; /* take full width under input on mobile */
   }
 
-  form input {
-    font-size: 0.9rem;
-  }
+.container {
+  padding: 1rem;
+}
 
-  form button {
-    font-size: 0.9rem;
-  }
+form input {
+  font-size: 0.9rem;
+}
 
-  table, th, td {
-    font-size: 0.85rem;
-  }
+form button {
+  font-size: 0.9rem;
+}
 
-  .item-table th, .item-table td {
-    font-size: 0.85rem;
-  }
+table, th, td {
+  font-size: 0.85rem;
+}
 
-  .item-table input {
-    font-size: 0.85rem;
-  }
+.item-table th, .item-table td {
+  font-size: 0.85rem;
+}
+
+.item-table input {
+  font-size: 0.85rem;
+}
 }
