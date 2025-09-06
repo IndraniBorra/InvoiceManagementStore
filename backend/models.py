@@ -3,7 +3,7 @@ from typing import Optional,List
 from pydantic import field_validator
 
 
-from datetime import date
+from datetime import date, datetime
 
 #Database models
 class Invoice(SQLModel, table=True):
@@ -15,6 +15,12 @@ class Invoice(SQLModel, table=True):
     line_items: List["LineItem"] = Relationship(back_populates="invoice", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Invoice.id == LineItem.invoice_id"})
     invoice_total: float = 0.0
     invoice_status: str = Field(default="draft")
+    
+    # Status tracking timestamps
+    date_submitted: Optional[datetime] = Field(default=None)
+    date_sent: Optional[datetime] = Field(default=None)
+    date_paid: Optional[datetime] = Field(default=None)
+    date_cancelled: Optional[datetime] = Field(default=None)
 
     customer: Optional["Customer"] = Relationship(back_populates="invoices")  # many-to-one relationship with Customer
     

@@ -71,10 +71,32 @@ The frontend is configured to connect to `http://localhost:8000` for local devel
 - `/product` - Product catalog management
 - `/invoice/:id` - Single invoice view
 
+## Test Data Generation
+
+### Generate Sample Data
+```bash
+cd backend
+python scripts/seed_data.py  # Generates 1000 invoices, 20 customers, 50 products
+```
+
+**Features**:
+- **Realistic Business Data**: Diverse customers, products across 6 categories
+- **Status Tracking**: Invoices with proper timestamp progression (draft → submitted → sent → paid/overdue/cancelled)
+- **Date Distribution**: 12 months of data with seasonal patterns
+- **Revenue Analytics**: $12M+ in sample transactions for reporting features
+
+## Troubleshooting
+
+When encountering issues, check `TROUBLESHOOTING.md` for solutions to common problems including:
+- Import and module path issues
+- Date range logic errors  
+- Database constraint violations
+- Business logic sequencing problems
+
 ## Important Notes
 
 - Auto-complete customer search has two implementation approaches documented in frontend README:
   1. Load all customer data to frontend with client-side filtering
   2. Server-side search API with debounce (recommended for large datasets)
 - AWS credentials should never be committed - use `aws configure` locally
-- The system supports both draft and finalized invoice statuses
+- The system supports both draft and finalized invoice statuses with full timestamp tracking
