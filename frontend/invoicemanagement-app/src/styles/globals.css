@@ -1,7 +1,7 @@
-/* Global Styles - Modern Reset and Base Styles */
+/* Modern Global Styles */
 @import './variables.css';
 
-/* Modern CSS Reset */
+/* Enhanced CSS Reset */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -11,6 +11,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   tab-size: 4;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -18,9 +19,11 @@ body {
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--color-gray-900);
-  background-color: var(--bg-secondary);
+  background: var(--gradient-subtle);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 /* Typography */
@@ -90,14 +93,47 @@ button:disabled {
   opacity: 0.6;
 }
 
-/* Container utility */
+/* Modern Container utility */
 .container {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: var(--spacing-2xl) auto;
   padding: var(--spacing-2xl);
-  background: var(--bg-primary);
+  background: var(--bg-card);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-gray-200);
+}
+
+/* Modern Card Component */
+.card {
+  background: var(--bg-card);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-gray-200);
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.card-header {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-gray-200);
+  background: var(--bg-tertiary);
+}
+
+.card-body {
+  padding: var(--spacing-xl);
+}
+
+.card-footer {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-gray-200);
+  background: var(--bg-tertiary);
 }
 
 /* Utility classes */

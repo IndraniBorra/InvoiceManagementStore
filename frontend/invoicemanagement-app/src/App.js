@@ -18,6 +18,8 @@ import './styles/components/AllInvoicesReport.css';
 import './styles/components/CustomerReport.css';
 import './styles/components/AgingReport.css';
 import './styles/components/OverdueReport.css';
+import './styles/components/SingleInvoicePage.css';
+import './styles/components/Logo.css';
 
 // Import pages
 import InvoicePage from './pages/InvoicePage';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { reportApi } from '../services/api';
 import Button from '../components/ui/Button';
+import Logo from '../components/ui/Logo';
 import ErrorBoundary from '../components/ui/ErrorBoundary';
 import RevenueWidget from '../components/reports/RevenueWidget';
 import AllInvoicesReport from '../components/reports/AllInvoicesReport';
@@ -77,8 +78,13 @@ const ReportsPage = () => {
     <ErrorBoundary>
       <div className="reports-page">
         <div className="reports-header">
-          <h1>📊 Reports Center</h1>
-          <p>Business intelligence and analytics for your invoice management system</p>
+          <div className="reports-header-content">
+            <Logo size="sm" className="header-logo" />
+            <div>
+              <h1>📊 Reports Center</h1>
+              <p>Business intelligence and analytics for your invoice management system</p>
+            </div>
+          </div>
         </div>
 
         {error && (
