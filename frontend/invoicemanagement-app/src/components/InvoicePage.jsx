@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api'; // Make sure this points to your axios setup
+import { apiClient } from '../services/api'; // Modern API client
 import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
-import CustomerNameSearch from './CustomerNameSearch';
-import AutocompleteSearch from './AutoCompleteSearch';
-import GenericAutoComplete from './GenericAutoComplete';
-import LineItem from './LineItem';
+import CustomerSearch from './ui/search/CustomerSearch';
+import ProductSearch from './ui/search/ProductSearch';
 
 
 const InvoicePage = () => {
@@ -63,44 +61,45 @@ const InvoicePage = () => {
   };
 
 
-  // Function to calculate due date based on terms
-  const calculateDueDate = (issued,terms) => {
-    if (!issued) return 'Due date not set'; // If no issued date, return a message
+  // Function to calculate due date based on terms - matches backend logic exactly
+  const calculateDueDate = (issued, terms) => {
+    if (!issued) return 'Due date not set';
+    
     const date = new Date(issued);
-    switch (terms) {
-      case 'Due on Receipt':
-        return issued; // Due immediately
-      case 'Net 15':
-        date.setDate(date.getDate() + 15);
-        break;
-      case 'Net 30':
-        date.setDate(date.getDate() + 30);
-        break;
-      case 'Net 45':
-        date.setDate(date.getDate() + 45);
-        break;
-      case 'Net 60':
-        date.setDate(date.getDate() + 60);
-        break;
-      case 'Due end of the month':
-        date.setMonth(date.getMonth() + 1);
-        date.setDate(0); // Last day of the month
-        break;
-      case 'Due end of next month':
-        date.setMonth(date.getMonth() + 2);
-        date.setDate(0); // Last day of the month
-        break;
-      default:
-        return issued; // Fallback to issued date
-    }
-    return date.toISOString().split('T')[0]; // Return in YYYY-MM-DD format
+    const termsMap = {
+      "Due on Receipt": 0,
+      "Net 15": 15,
+      "Net 30": 30,
+      "Net 45": 45,
+      "Net 60": 60,
+      "Due end of the month": 0,
+      "Due end of next month": 0
+    };
 
+    if (terms === "Due end of the month") {
+      // Get first day of next month, then subtract one day (matches backend)
+      const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      nextMonth.setDate(nextMonth.getDate() + 32); // Move to following month
+      const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 0);
+      return lastDay.toISOString().split('T')[0];
+    } else if (terms === "Due end of next month") {
+      // Skip to next month, then add one more month (matches backend)
+      const nextMonth = new Date(date.getFullYear(), date.getMonth() + 2, 1);
+      nextMonth.setDate(nextMonth.getDate() + 32);
+      const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 0);
+      return lastDay.toISOString().split('T')[0];
+    } else {
+      // Standard day addition
+      const daysToAdd = termsMap[terms] || 0;
+      date.setDate(date.getDate() + daysToAdd);
+      return date.toISOString().split('T')[0];
+    }
   }
 
   useEffect(() => {
     const fetchInvoiceToEdit = async () => {
     try {
-      const response = await api.get(`/invoice/${id}`);
+      const response = await apiClient.get(`/invoice/${id}`);
       const invoice = response.data;
 
       const editData = {
@@ -194,7 +193,7 @@ const InvoicePage = () => {
 
       if (id) {
         // Update existing invoice
-        const response = await api.put(`/invoice/${id}`, formData);
+        const response = await apiClient.put(`/invoice/${id}`, formData);
         if (response.status === 200) {
           alert(`Invoice ID: ${response.data.id} updated successfully!`);
         } else {
@@ -202,7 +201,7 @@ const InvoicePage = () => {
         }
       } else {
         // Create new invoice
-        const response = await api.post('/invoice', formData);
+        const response = await apiClient.post('/invoice', formData);
         if (response.status === 201 || response.status === 200) {
           alert(`Invoice ID: ${response.data.id} created successfully!`);
         } else {
@@ -263,33 +262,15 @@ const InvoicePage = () => {
             <label>Customer Name</label>
 
            
-            <GenericAutoComplete
-              fetchUrl="/customers"
-              displayFields={['customer_name']}
-              searchFields={['customer_name', 'customer_email']}
-              metaFields={['customer_email']}
-              placeholder="Search or Create a customer"
-              showAvatar={true}
-              avatarField="customer_name"
-              className="theme-large" // Apply custom theme
-              customActions={[
-                {
-                  label: 'New Customer',
-                  icon: '➕',
-                  color: '#28a745',
-                  onClick: () => navigate('/customer')
-                }
-              ]}
-              onSelect={(customer, isComplete) => {
-                if (isComplete) {
-                  setFormData({
-                    ...formData,
-                    customer_id: customer.customer_id,
-                    customer_name: customer.customer_name,
-                    customer_address: customer.customer_address,
-                    customer_phone: customer.customer_phone,
-                  });
-                }
+            <CustomerSearch
+              onSelect={(customer, customerId) => {
+                setFormData({
+                  ...formData,
+                  customer_id: customerId,
+                  customer_name: customer.customer_name,
+                  customer_address: customer.customer_address,
+                  customer_phone: customer.customer_phone,
+                });
               }}
             />
 
@@ -351,33 +332,23 @@ const InvoicePage = () => {
 
                 <tr key={index}>
                 <td padding="0 12px">
-                  <GenericAutoComplete
-                      fetchUrl="/products"
-                      displayFields={['product_description']}
-                      searchFields={['product_description']}
-                      metaFields={['product_price']}
-                      placeholder="Search products..."
-                      showAvatar={false}
-                      className="product-search-inline"
-                      maxHeight="180px"
+                  <ProductSearch
                       value={item.product_description}
-                      minCharsToSearch={1}
-                      onSelect={(product, isComplete) => {
-                        if (isComplete) {
-                          console.log("Selected product:", product); // Debug log
-                          // User selected a product from dropdown
-                          handleItemChange(index, 'product_id', product.product_id);    // ✅ Set product_id
-                          handleItemChange(index, 'product_description', product.product_description);
-                          handleItemChange(index, 'product_price', product.product_price);
-                          
-                          // Auto-calculate line total with current quantity
-                          const currentQty = item.line_items_qty || 1;
-                          const lineTotal = currentQty * product.product_price;
-                          handleItemChange(index, 'line_items_total', lineTotal);
-                        } else {
-                          // User is typing - update description only
-                          handleItemChange(index, 'product_description', product.product_description || '');
-                        }
+                      onSelect={(product, productId) => {
+                        console.log("Selected product:", product); // Debug log
+                        // User selected a product from dropdown
+                        handleItemChange(index, 'product_id', productId);    // ✅ Set product_id
+                        handleItemChange(index, 'product_description', product.product_description);
+                        handleItemChange(index, 'product_price', product.product_price);
+                        
+                        // Auto-calculate line total with current quantity
+                        const currentQty = item.line_items_qty || 1;
+                        const lineTotal = currentQty * product.product_price;
+                        handleItemChange(index, 'line_items_total', lineTotal);
+                      }}
+                      onInputChange={(value) => {
+                        // User is typing - update description only
+                        handleItemChange(index, 'product_description', value);
                       }}
                     />
                     {errors[`item_desc_${index}`] && <p className="error-text">{errors[`item_desc_${index}`]}</p>}
