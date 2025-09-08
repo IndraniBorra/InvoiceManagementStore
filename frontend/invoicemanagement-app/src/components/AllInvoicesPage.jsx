@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import api from '../api'; // Making sure this points to my axios setup
+import { apiClient } from '../services/api'; // Modern API client
 import '../App.css';
 
 
@@ -10,7 +10,7 @@ const AllInvoicesPage = () => {
 
   const fetchInvoices = async () => {
     try {
-      const response = await api.get('/invoices');
+      const response = await apiClient.get('/invoices');
       // console.log('Fetched Invoices:', response.data);
       setInvoices(response.data);
       console.log('Invoices set:', response.data);

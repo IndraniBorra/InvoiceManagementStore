@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import api from '../api';
-import '../components_css/CustomerPage.css'; // Import your CSS styles
+import { apiClient } from '../services/api';
+import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const CustomerPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -16,7 +16,7 @@ const CustomerPage = () => {
 
   const fetchCustomers = async () => {
     try {
-      const res = await api.get('/customers');
+      const res = await apiClient.get('/customers');
       setCustomers(res.data);
     } catch (err) {
       console.error('Error fetching customers:', err);
@@ -60,11 +60,11 @@ const CustomerPage = () => {
         }
         try {
           if (editingId) {
-            const response = await api.put(`/customer/${editingId}`, formData);
+            const response = await apiClient.put(`/customer/${editingId}`, formData);
             console.log('Update Response:', response.data);
             alert(`Customer ID: ${response.data.customer_id} updated successfully!`);
           } else {
-            const response = await api.post('/customer', formData);
+            const response = await apiClient.post('/customer', formData);
             console.log('Create Response:', response.data);
             alert(`Customer ID: ${response.data.customer_id} created successfully!`);
           }

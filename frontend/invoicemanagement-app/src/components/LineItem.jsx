@@ -1,6 +1,6 @@
 // This file is part of Invoice Management App. 
 
-import AutocompleteSearch from "./AutoCompleteSearch";
+import AutoComplete from "./ui/AutoComplete";
 
 
 const LineItem = ({}) => {
@@ -8,11 +8,13 @@ const LineItem = ({}) => {
     <div>
         
 
-        <AutocompleteSearch
-          fetchUrl="http://localhost:8000/products"
-          displayFields={['description']}
+        <AutoComplete
+          fetchUrl="/products"
+          displayFields={['product_description']}
+          searchFields={['product_description']}
+          valueField="product_id"
           placeholder="Search product"
-          onSelect={(selectedProduct) => {
+          onSelect={(selectedProduct, value) => {
             console.log("Selected Product:", selectedProduct);
           }}
         />

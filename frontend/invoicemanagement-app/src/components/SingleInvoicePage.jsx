@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../api';
+import { apiClient } from '../services/api';
 import html2pdf from 'html2pdf.js';
-import '../components_css/SingleInvoice.css';
+import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const SingleInvoicePage = () => {
   const invoiceRef = useRef();
@@ -27,7 +27,7 @@ const SingleInvoicePage = () => {
   useEffect(() => {
     const fetchInvoice = async () => {
       try {
-        const response = await api.get(`/invoice/${id}`);
+        const response = await apiClient.get(`/invoice/${id}`);
         if (!response.data) {
           setError("Invoice not found.");
         } else {

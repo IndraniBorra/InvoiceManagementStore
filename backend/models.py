@@ -1,28 +1,36 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional,List
+from sqlalchemy import Index
+from typing import Optional, List
 from pydantic import field_validator
-
-
 from datetime import date, datetime
 
 #Database models
 class Invoice(SQLModel, table=True):
+    __tablename__ = "invoice"
+    
     id: Optional[int] = Field(default=None, primary_key=True)
-    customer_id: int = Field(foreign_key="customer.customer_id")
-    date_issued: date
+    customer_id: int = Field(foreign_key="customer.customer_id", index=True)  # Index for customer lookups
+    date_issued: date = Field(index=True)  # Index for date-based queries
     invoice_terms: str
-    invoice_due_date: date
+    invoice_due_date: date = Field(index=True)  # Index for due date queries
     line_items: List["LineItem"] = Relationship(back_populates="invoice", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Invoice.id == LineItem.invoice_id"})
     invoice_total: float = 0.0
-    invoice_status: str = Field(default="draft")
+    invoice_status: str = Field(default="draft", index=True)  # Index for status filtering
     
     # Status tracking timestamps
-    date_submitted: Optional[datetime] = Field(default=None)
-    date_sent: Optional[datetime] = Field(default=None)
-    date_paid: Optional[datetime] = Field(default=None)
+    date_submitted: Optional[datetime] = Field(default=None, index=True)
+    date_sent: Optional[datetime] = Field(default=None, index=True)
+    date_paid: Optional[datetime] = Field(default=None, index=True)
     date_cancelled: Optional[datetime] = Field(default=None)
 
     customer: Optional["Customer"] = Relationship(back_populates="invoices")  # many-to-one relationship with Customer
+    
+    # Define composite indexes for common query patterns
+    __table_args__ = (
+        Index('idx_customer_date', 'customer_id', 'date_issued'),  # Customer invoice history
+        Index('idx_status_date', 'invoice_status', 'date_issued'),  # Status-based filtering with dates
+        Index('idx_due_date_status', 'invoice_due_date', 'invoice_status'),  # Overdue invoice queries
+    )
     
 
 
@@ -43,13 +51,20 @@ class Invoice(SQLModel, table=True):
 
 
 class LineItem(SQLModel, table=True):
+    __tablename__ = "lineitem"
+    
     lineitem_id: Optional[int] = Field(default=None, primary_key=True)
     lineitem_qty: int = Field(..., gt=0, description="Quantity must be > 0")
     lineitem_total: float = Field(..., gt=0, description="Total must be > 0")
-    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
+    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id", index=True)  # Index for invoice lookups
     invoice: Optional["Invoice"] = Relationship(back_populates="line_items")  # many-to-one relationship with Invoice
-    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id")
+    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id", index=True)  # Index for product lookups
     product: Optional["Product"] = Relationship(back_populates="line_items")  # many-to-one relationship with Product
+    
+    # Composite index for common queries
+    __table_args__ = (
+        Index('idx_invoice_product', 'invoice_id', 'product_id'),  # Invoice line item queries
+    )
 
     @field_validator("lineitem_qty")
     @classmethod
@@ -60,13 +75,20 @@ class LineItem(SQLModel, table=True):
 
 
 class Customer(SQLModel, table=True):
+    __tablename__ = "customer"
+    
     customer_id: Optional[int] = Field(default=None, primary_key=True)
-    customer_name: str
+    customer_name: str = Field(index=True)  # Index for name searches
     customer_address: str
-    customer_phone: str
-    customer_email: str = None
+    customer_phone: str = Field(index=True)  # Index for phone lookups
+    customer_email: str = Field(default=None, index=True)  # Index for email lookups
 
     invoices: List["Invoice"] = Relationship(back_populates="customer")
+    
+    # Composite index for customer searches
+    __table_args__ = (
+        Index('idx_customer_search', 'customer_name', 'customer_email'),  # Name and email search
+    )
 
 
 
@@ -92,10 +114,17 @@ class Customer(SQLModel, table=True):
         return v
 
 class Product(SQLModel, table=True):
+    __tablename__ = "product"
+    
     product_id: Optional[int] = Field(default=None, primary_key=True)
-    product_description: str = Field(..., unique=True)
-    product_price: float
+    product_description: str = Field(..., unique=True, index=True)  # Index for product searches
+    product_price: float = Field(index=True)  # Index for price-based queries
     line_items: List["LineItem"] = Relationship(back_populates="product", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Product.product_id == LineItem.product_id"})
+    
+    # Index for price range queries
+    __table_args__ = (
+        Index('idx_product_price_desc', 'product_price', 'product_description'),  # Price and description search
+    )
 
     @field_validator("product_description")
     @classmethod

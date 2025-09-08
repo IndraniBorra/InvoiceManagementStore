@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import api from '../api';
-import '../components_css/ProductPage.css'; // Import your CSS styles
+import { apiClient } from '../services/api';
+import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const ProductPage = () => {
     const [products, setProducts] = useState([]); // State to hold products to show in the table format
@@ -15,7 +15,7 @@ const ProductPage = () => {
     
     const fetchProducts = async () => {
         try {
-        const res = await api.get('/products');
+        const res = await apiClient.get('/products');
         setProducts(res.data);
         } catch (err) {
         console.error('Error fetching products:', err);
@@ -50,10 +50,10 @@ const ProductPage = () => {
     
         try {
         if (editingId) {
-            const response = await api.put(`/product/${editingId}`, formData);
+            const response = await apiClient.put(`/product/${editingId}`, formData);
             alert(`Product ID: ${response.data.product_id} updated successfully!`);
         } else {
-            const response = await api.post('/product', formData);
+            const response = await apiClient.post('/product', formData);
             alert(`Product ID: ${response.data.product_id} created successfully!`);
         }
         resetForm();
