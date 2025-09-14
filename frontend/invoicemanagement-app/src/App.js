@@ -31,6 +31,9 @@ import SingleInvoicePage from './components/SingleInvoicePage';
 import CustomerPage from './components/CustomerPage';
 import ProductPage from './components/ProductPage';
 
+// Import LLM Assistant
+import LLMAssistant from './components/LLMAssistant';
+
 // Main App component
 const App = () => {
   return (
@@ -63,6 +66,9 @@ const App = () => {
               {/* Default/Fallback Route */}
               <Route path="*" element={<InvoicePage />} />
             </Routes>
+            
+            {/* LLM Assistant - Available on all pages */}
+            <LLMAssistant />
           </div>
         </Router>
       </InvoiceProvider>
