@@ -5,7 +5,7 @@ import '../App.css';
 
 
 const AllInvoicesPage = () => {
-  
+
   const [invoices, setInvoices] = useState([]);
 
   const fetchInvoices = async () => {
@@ -45,9 +45,9 @@ const AllInvoicesPage = () => {
           {invoices.map((invoice) => (
             <tr key={invoice.id}>
               <td>{invoice.id}</td>
-              <td>{invoice.customer_name}</td>
-              <td>{invoice.customer_phone}</td>
-              <td>{invoice.customer_address}</td>
+              <td>{invoice.customer.customer_name}</td>
+              <td>{invoice.customer.customer_phone}</td>
+              <td>{invoice.customer.customer_address}</td>
               <td>{invoice.date_issued}</td>
               <td>${invoice.invoice_total}</td>
               <td>

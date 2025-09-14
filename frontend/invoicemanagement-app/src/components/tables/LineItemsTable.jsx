@@ -22,7 +22,7 @@ const LineItemsTable = ({
 
   const calculateTotal = () => {
     return lineItems.reduce((total, item) => {
-      return total + (item.line_items_qty * item.product_price || 0);
+      return total + (item.lineitem_qty * item.product_price || 0);
     }, 0);
   };
 
@@ -88,10 +88,10 @@ const LineItemsTable = ({
                   <Input
                     type="number"
                     placeholder="Qty"
-                    value={item.line_items_qty}
+                    value={item.lineitem_qty}
                     onChange={(e) => {
                       const qty = parseFloat(e.target.value) || 0;
-                      onUpdateItem(index, 'line_items_qty', qty);
+                      onUpdateItem(index, 'lineitem_qty', qty);
                     }}
                     error={errors[`item_qty_${index}`]}
                     disabled={disabled}
@@ -120,7 +120,7 @@ const LineItemsTable = ({
 
                 <td className="amount-cell">
                   <div className="amount-display">
-                    {formatCurrency(item.line_items_qty * item.product_price)}
+                    {formatCurrency(item.lineitem_qty * item.product_price)}
                   </div>
                 </td>
 

@@ -38,8 +38,8 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()  # Logging level
 
 # CORS configuration - use environment variables for flexibility and security
 ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS", 
-    "http://localhost:3000,http://127.0.0.1:3000"
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002"
 ).split(",")
 
 # Allowed methods - restrict to only what's needed
@@ -48,7 +48,7 @@ ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 # Allowed headers - restrict to common headers + security headers
 ALLOWED_HEADERS = [
     "Accept",
-    "Accept-Language", 
+    "Accept-Language",
     "Content-Language",
     "Content-Type",
     "Authorization",
@@ -60,7 +60,7 @@ ALLOWED_HEADERS = [
 # 1. Global Error Handler (outermost - catches all exceptions)
 app.add_middleware(GlobalErrorHandlerMiddleware, debug_mode=DEBUG_MODE)
 
-# 2. Request Logging (logs all requests and responses)  
+# 2. Request Logging (logs all requests and responses)
 app.add_middleware(RequestLoggingMiddleware, log_level=LOG_LEVEL)
 
 # 3. Security Headers (adds security headers to all responses)

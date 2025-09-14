@@ -5,7 +5,7 @@ from database import get_session, engine
 from typing import List
 from datetime import date, timedelta
 from models import Invoice, LineItem, Customer, Product
-from api import InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest
+from api import CustomerMinimalResponse, InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest, ProductMinimalResponse
 
 router = APIRouter()
 
@@ -45,29 +45,40 @@ def calculate_due_date(date_issued: date, terms: str) -> date:
 def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_session)):
 
     customer = session.get(Customer, invoice_data.customer_id)
-   
+
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    
-    
+
+
     due_date = calculate_due_date(invoice_data.date_issued, invoice_data.invoice_terms)
-    
+
+    # Calculate line items with totals
+    line_items_data = []
+    total_amount = 0.0
+
+    for item in invoice_data.line_items:
+        product = session.get(Product, item.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
+
+        line_total = item.lineitem_qty * product.product_price
+        total_amount += line_total
+
+        line_items_data.append(LineItem(
+            product_id=item.product_id,
+            lineitem_qty=item.lineitem_qty,
+            lineitem_total=line_total
+        ))
+
     invoice = Invoice(
         customer_id=invoice_data.customer_id,
         date_issued=invoice_data.date_issued,
         invoice_terms=invoice_data.invoice_terms,
         invoice_due_date=due_date,
-        invoice_total=invoice_data.invoice_total,
-        invoice_status=invoice_data.invoice_status,
+        invoice_total=total_amount,
+        invoice_status="draft",
         customer=customer,
-        line_items=[
-            LineItem(
-                product_id=item.product_id,
-                lineitem_qty=item.line_items_qty,
-                lineitem_total=item.line_items_total
-            )
-            for item in invoice_data.line_items
-        ]
+        line_items=line_items_data
     )
 
     print(f"Creating Invoice: {invoice}")
@@ -90,9 +101,13 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         invoice_total=invoice.invoice_total,
         line_items=[
             LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
                 product_id=item.product_id,
-                product_description=item.product.product_description,
-                product_price=item.product.product_price,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ),
                 lineitem_qty=item.lineitem_qty,
                 lineitem_total=item.lineitem_total
             )
@@ -100,7 +115,7 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         ]
     )
 
-  
+
 
 
 #Get: Retrieve all invoices (optimized with eager loading to fix N+1 issues)
@@ -108,8 +123,8 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
 def get_all_invoices(session: Session = Depends(get_session)):
     """
     Retrieve all invoices with optimized query to prevent N+1 issues.
-    
-    Uses selectinload for one-to-many relationships (line_items) and 
+
+    Uses selectinload for one-to-many relationships (line_items) and
     joinedload for many-to-one relationships (customer, product).
     """
     # Optimized query with eager loading for all relationships
@@ -122,18 +137,23 @@ def get_all_invoices(session: Session = Depends(get_session)):
             selectinload(Invoice.line_items).joinedload(LineItem.product)
         )
     )
-    
+
     invoices = session.exec(statement).unique().all()
-    
+
     if not invoices:
         raise HTTPException(status_code=404, detail="No invoices found")
-    
+
     return [
         InvoiceMinimalResponse(
             id=inv.id,
-            customer_name=inv.customer.customer_name,
-            customer_address=inv.customer.customer_address,
-            customer_phone=inv.customer.customer_phone,
+            customer_id=inv.customer_id,
+            customer=CustomerMinimalResponse(
+                customer_id=inv.customer.customer_id,
+                customer_name=inv.customer.customer_name,
+                customer_address=inv.customer.customer_address,
+                customer_phone=inv.customer.customer_phone,
+                customer_email=inv.customer.customer_email
+            ),
             date_issued=inv.date_issued,
             invoice_due_date=inv.invoice_due_date,
             invoice_terms=inv.invoice_terms,
@@ -141,9 +161,13 @@ def get_all_invoices(session: Session = Depends(get_session)):
             invoice_total=inv.invoice_total,
             line_items=[
                 LineItemMinimalResponse(
+                    lineitem_id=item.lineitem_id,
                     product_id=item.product_id,
-                    product_description=item.product.product_description if item.product else "Unknown Product",
-                    product_price=item.product.product_price if item.product else 0.0,
+                    product=ProductMinimalResponse(
+                        product_id=item.product.product_id,
+                        product_description=item.product.product_description,
+                        product_price=item.product.product_price
+                    ) if item.product else None,
                     lineitem_qty=item.lineitem_qty,
                     lineitem_total=item.lineitem_total
                 )
@@ -159,7 +183,7 @@ def get_all_invoices(session: Session = Depends(get_session)):
 def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
     """
     Retrieve a specific invoice with optimized query to prevent N+1 issues.
-    
+
     Loads customer and all line items with their product details in a single query.
     """
     # Optimized query with eager loading
@@ -173,14 +197,15 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
             selectinload(Invoice.line_items).joinedload(LineItem.product)
         )
     )
-    
+
     invoice = session.exec(statement).unique().first()
-    
+
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
     return InvoiceMinimalResponse(
         id=invoice.id,
+        customer_id=invoice.customer_id,
         customer_name=invoice.customer.customer_name,
         customer_address=invoice.customer.customer_address,
         customer_phone=invoice.customer.customer_phone,
@@ -191,9 +216,13 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
         invoice_total=invoice.invoice_total,
         line_items=[
             LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
                 product_id=item.product_id,
-                product_description=item.product.product_description if item.product else "Unknown Product",
-                product_price=item.product.product_price if item.product else 0.0,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ) if item.product else None,
                 lineitem_qty=item.lineitem_qty,
                 lineitem_total=item.lineitem_total
             )
@@ -218,7 +247,7 @@ def delete_invoice(invoice_id: int, session: Session = Depends(get_session)):
 def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Session = Depends(get_session)):
     """
     Update an existing invoice with optimized database queries.
-    
+
     Uses eager loading to prevent N+1 issues when returning the updated invoice.
     """
     # Get invoice with relationships loaded for efficient updates
@@ -241,7 +270,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
         customer = session.get(Customer, updated_invoice.customer_id)
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
-   
+
     # Update invoice fields (matching actual Invoice model)
     invoice_db.customer_id = updated_invoice.customer_id
     invoice_db.date_issued = updated_invoice.date_issued
@@ -252,19 +281,25 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
 
     # Clear old line items and add new ones
     invoice_db.line_items.clear()
-    
+
     for item_data in updated_invoice.line_items:
+        product = session.get(Product, item_data.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item_data.product_id} not found")
+
+        line_total = item_data.lineitem_qty * product.product_price
+
         new_item = LineItem(
             product_id=item_data.product_id,
-            lineitem_qty=item_data.line_items_qty,
-            lineitem_total=item_data.line_items_total
+            lineitem_qty=item_data.lineitem_qty,
+            lineitem_total=line_total
         )
         invoice_db.line_items.append(new_item)
-    
+
     session.add(invoice_db)
     session.commit()
     session.refresh(invoice_db)
-    
+
     # Reload with relationships to ensure we have fresh data including line item products
     statement = (
         select(Invoice)
@@ -288,9 +323,13 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
         invoice_total=updated_invoice_db.invoice_total,
         line_items=[
             LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
                 product_id=item.product_id,
-                product_description=item.product.product_description if item.product else "Unknown Product",
-                product_price=item.product.product_price if item.product else 0.0,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ) if item.product else None,
                 lineitem_qty=item.lineitem_qty,
                 lineitem_total=item.lineitem_total
             )
