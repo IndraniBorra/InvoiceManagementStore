@@ -14,6 +14,7 @@ const LLMAssistant = () => {
   const chatContainerRef = useRef(null);
   const navigate = useNavigate();
   const llmNav = useLLMNavigation();
+  const messageCounterRef = useRef(0);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -23,8 +24,9 @@ const LLMAssistant = () => {
   }, [messages]);
 
   const addMessage = useCallback((type, content, metadata = {}) => {
+    messageCounterRef.current += 1;
     const newMessage = {
-      id: Date.now(),
+      id: `${Date.now()}-${messageCounterRef.current}`,
       type,
       content,
       timestamp: new Date().toLocaleTimeString(),
