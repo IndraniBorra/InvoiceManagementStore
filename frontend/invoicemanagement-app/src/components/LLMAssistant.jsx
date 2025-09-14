@@ -114,25 +114,38 @@ const LLMAssistant = () => {
 
   const determineAPIAction = async (query) => {
     const lowerQuery = query.toLowerCase();
-    console.log('📝 Processing query:', query);
+    console.log('🚀 === STARTING QUERY PROCESSING ===');
+    console.log('📝 Original query:', query);
     console.log('🔍 Normalized query:', lowerQuery);
+    console.log('🤖 LLM Generator available:', !!llmGenerator);
     
     // Use LLM if available, otherwise fall back to pattern matching
     if (llmGenerator) {
       try {
-        return await generateFromLLM(lowerQuery);
+        console.log('🧠 Attempting LLM processing...');
+        const result = await generateFromLLM(lowerQuery);
+        console.log('✅ LLM processing successful:', result);
+        return result;
       } catch (error) {
-        console.log('⚠️ LLM failed, falling back to pattern matching:', error.message);
+        console.log('⚠️ LLM processing failed:', error.message);
+        console.log('🔄 Falling back to pattern matching...');
       }
+    } else {
+      console.log('🤖 LLM not available, using pattern matching');
     }
     
     // Fallback to pattern matching for REST API
-    console.log('🔧 Using pattern matching for REST API');
-    return generateRESTFromPattern(lowerQuery);
+    console.log('🔧 Executing pattern matching analysis...');
+    const patternResult = generateRESTFromPattern(lowerQuery);
+    console.log('📊 Pattern matching result:', patternResult);
+    return patternResult;
   };
 
   const generateFromLLM = async (query) => {
+    console.log('🧠 === LLM PROCESSING PHASE ===');
+    
     if (!llmGenerator) {
+      console.log('❌ LLM generator not initialized');
       throw new Error('LLM not available');
     }
 
@@ -153,101 +166,163 @@ Available actions:
 
 Respond with just the action type:`;
 
+    console.log('📝 Generated LLM prompt:', prompt);
+    
     try {
+      console.log('⚙️ Calling LLM with parameters:', {
+        max_new_tokens: 10,
+        do_sample: false,
+        temperature: 0.1
+      });
+      
       const result = await llmGenerator(prompt, {
         max_new_tokens: 10,
         do_sample: false,
         temperature: 0.1
       });
       
+      console.log('🤖 Raw LLM response:', result);
+      
       const generatedText = result[0]?.generated_text || '';
+      console.log('📄 Extracted generated text:', generatedText);
+      
       const actionMatch = generatedText.toLowerCase().match(/(view_invoice|list_invoices|create_invoice|edit_invoice|list_customers|list_products|show_reports|overdue_invoices)/);
+      console.log('🔍 Action regex match result:', actionMatch);
       
       if (actionMatch) {
         const action = actionMatch[1];
-        return generateActionFromLLMResult(action, query);
+        console.log('✅ Detected action:', action);
+        console.log('🔄 Converting LLM action to navigation structure...');
+        
+        const navigationResult = generateActionFromLLMResult(action, query);
+        console.log('🎯 Final navigation action:', navigationResult);
+        
+        return navigationResult;
       } else {
+        console.log('❌ No valid action found in LLM response');
         throw new Error('Could not determine action from LLM');
       }
     } catch (error) {
+      console.error('🚨 LLM processing error:', error);
       throw new Error(`LLM processing failed: ${error.message}`);
     }
   };
 
   const generateActionFromLLMResult = (action, originalQuery) => {
+    console.log('🎯 === ACTION CONVERSION PHASE ===');
+    console.log('🔍 Converting action:', action);
+    console.log('📄 Original query for context:', originalQuery);
+    
     // Extract specific details based on the determined action
     const invoiceIdMatch = originalQuery.match(/invoice\s*#?(\d+)/i);
+    console.log('🔢 Invoice ID extraction result:', invoiceIdMatch);
+    
+    console.log('🔄 Processing action type:', action);
     
     switch (action) {
       case 'view_invoice':
+        console.log('👁️ Processing VIEW_INVOICE action');
         if (invoiceIdMatch) {
-          return {
+          const invoiceId = invoiceIdMatch[1];
+          console.log('✅ Found invoice ID:', invoiceId);
+          const result = {
             type: 'navigation',
             action: 'view_invoice',
-            invoiceId: invoiceIdMatch[1],
-            route: `/invoice/${invoiceIdMatch[1]}`,
-            description: `view invoice #${invoiceIdMatch[1]}`
+            invoiceId: invoiceId,
+            route: `/invoice/${invoiceId}`,
+            description: `view invoice #${invoiceId}`
           };
+          console.log('🎯 Generated view invoice action:', result);
+          return result;
+        } else {
+          console.log('❌ No invoice ID found for view_invoice action');
         }
         break;
       case 'list_invoices':
-        return {
+        console.log('📋 Processing LIST_INVOICES action');
+        const listResult = {
           type: 'navigation',
           action: 'list_invoices',
           route: '/invoices',
           description: 'show all invoices'
         };
+        console.log('🎯 Generated list invoices action:', listResult);
+        return listResult;
       case 'create_invoice':
-        return {
+        console.log('➕ Processing CREATE_INVOICE action');
+        const createResult = {
           type: 'navigation',
           action: 'create_invoice',
           route: '/invoice',
           description: 'create a new invoice'
         };
+        console.log('🎯 Generated create invoice action:', createResult);
+        return createResult;
       case 'edit_invoice':
+        console.log('✏️ Processing EDIT_INVOICE action');
         if (invoiceIdMatch) {
-          return {
+          const invoiceId = invoiceIdMatch[1];
+          console.log('✅ Found invoice ID for editing:', invoiceId);
+          const editResult = {
             type: 'navigation',
             action: 'edit_invoice',
-            invoiceId: invoiceIdMatch[1],
-            route: `/edit-invoice/${invoiceIdMatch[1]}`,
-            description: `edit invoice #${invoiceIdMatch[1]}`
+            invoiceId: invoiceId,
+            route: `/edit-invoice/${invoiceId}`,
+            description: `edit invoice #${invoiceId}`
           };
+          console.log('🎯 Generated edit invoice action:', editResult);
+          return editResult;
+        } else {
+          console.log('❌ No invoice ID found for edit_invoice action');
         }
         break;
       case 'list_customers':
-        return {
+        console.log('👥 Processing LIST_CUSTOMERS action');
+        const customersResult = {
           type: 'navigation',
           action: 'list_customers',
           route: '/customer',
           description: 'show customers'
         };
+        console.log('🎯 Generated list customers action:', customersResult);
+        return customersResult;
       case 'list_products':
-        return {
+        console.log('📦 Processing LIST_PRODUCTS action');
+        const productsResult = {
           type: 'navigation',
           action: 'list_products',
           route: '/product',
           description: 'show products'
         };
+        console.log('🎯 Generated list products action:', productsResult);
+        return productsResult;
       case 'show_reports':
-        return {
+        console.log('📊 Processing SHOW_REPORTS action');
+        const reportsResult = {
           type: 'navigation',
           action: 'show_reports',
           route: '/reports',
           description: 'show reports'
         };
+        console.log('🎯 Generated show reports action:', reportsResult);
+        return reportsResult;
       case 'overdue_invoices':
-        return {
+        console.log('⏰ Processing OVERDUE_INVOICES action');
+        const overdueResult = {
           type: 'api_call',
           action: 'overdue_invoices',
           endpoint: '/reports/overdue',
           description: 'show overdue invoices'
         };
+        console.log('🎯 Generated overdue invoices action:', overdueResult);
+        return overdueResult;
       default:
+        console.log('❌ Unknown action encountered:', action);
         throw new Error(`Unknown action: ${action}`);
     }
     
     // Fallback if action couldn't be mapped
+    console.log('💥 Reached fallback - could not map action');
     throw new Error('Could not map LLM action to specific operation');
   };
 
@@ -375,44 +450,61 @@ Respond with just the action type:`;
   };
 
   const executeNavigation = async (action) => {
+    console.log('🧭 === NAVIGATION EXECUTION PHASE ===');
+    console.log('🎯 Executing navigation for action:', action);
+    
     try {
       let result;
+      
+      console.log('🔄 Determining navigation method for action type:', action.action);
       
       // Use specialized navigation methods based on action type
       switch (action.action) {
         case 'view_invoice':
+          console.log('👁️ Using llmNav.invoice.viewInvoice with ID:', action.invoiceId);
           result = llmNav.invoice.viewInvoice(action.invoiceId);
           break;
         case 'list_invoices':
+          console.log('📋 Using llmNav.invoice.listInvoices');
           result = llmNav.invoice.listInvoices();
           break;
         case 'create_invoice':
+          console.log('➕ Using llmNav.invoice.createInvoice');
           result = llmNav.invoice.createInvoice();
           break;
         case 'edit_invoice':
+          console.log('✏️ Using llmNav.invoice.editInvoice with ID:', action.invoiceId);
           result = llmNav.invoice.editInvoice(action.invoiceId);
           break;
         case 'list_customers':
+          console.log('👥 Using llmNav.entities.showCustomers');
           result = llmNav.entities.showCustomers();
           break;
         case 'list_products':
+          console.log('📦 Using llmNav.entities.showProducts');
           result = llmNav.entities.showProducts();
           break;
         case 'show_reports':
         case 'revenue_report':
+          console.log('📊 Using llmNav.reports.showReports with revenue view');
           result = llmNav.reports.showReports('revenue');
           break;
         default:
+          console.log('🔗 Using fallback llmNav.navigateToRoute with route:', action.route);
           result = llmNav.navigateToRoute(action.route);
       }
       
+      console.log('📍 Navigation method result:', result);
+      
       if (result.success) {
+        console.log('✅ Navigation successful, updating UI...');
         addMessage('system', `✅ Navigating to ${action.description}...`);
       } else {
+        console.log('❌ Navigation failed with error:', result.error);
         addMessage('system', `❌ Navigation failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('Navigation error:', error);
+      console.error('🚨 Navigation execution error:', error);
       addMessage('system', '❌ Navigation failed. Please try again.');
     }
   };
