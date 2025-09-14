@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { pipeline } from '@xenova/transformers';
+import { pipeline, env } from '@xenova/transformers';
 import useLLMNavigation from '../hooks/useLLMNavigation';
 import './LLMAssistant.css';
+
+// Configure transformers environment for browser compatibility
+env.allowLocalModels = false;  // Force remote model loading from CDN
+env.allowRemoteModels = true;  // Allow downloading from Hugging Face
+env.useBrowserCache = false;   // Disable cache to avoid stale 404 responses
 
 const LLMAssistant = () => {
   const [messages, setMessages] = useState([]);
@@ -37,27 +42,93 @@ const LLMAssistant = () => {
   }, []);
 
   const initializeLLM = useCallback(async () => {
-    addMessage('system', 'Loading SmolLM...');
+    addMessage('system', 'Starting model download...');
+    console.log('🔄 Initializing LLM model...');
+    
+    // Check SharedArrayBuffer availability first
+    if (typeof SharedArrayBuffer === 'undefined') {
+      console.error('❌ SharedArrayBuffer is not available. COEP/COOP headers may be missing.');
+      addMessage('system', '❌ SharedArrayBuffer not available. Browser security requirements not met.');
+      setIsModelLoading(false);
+      setLlmGenerator(null);
+      return;
+    } else {
+      console.log('✅ SharedArrayBuffer is available');
+    }
+    
+    // Store original fetch outside try block
+    const originalFetch = window.fetch;
     
     try {
-      // Use a lightweight model that works well in browsers
-      const generator = await pipeline('text-generation', 'Xenova/gpt2', {
-        quantized: false,
+      console.log('📥 Beginning pipeline creation for text-generation');
+      console.log('🎯 Model: Xenova/distilgpt2 (verified available on HuggingFace)');
+      console.log('⚙️ Configuration: quantized=true for faster loading');
+      
+      // Add network error logging by wrapping fetch
+      window.fetch = async (url, options) => {
+        console.log('🌐 Fetch request:', url);
+        try {
+          const response = await originalFetch(url, options);
+          console.log('📡 Fetch response:', response.status, response.statusText, 'for', url);
+          
+          if (!response.ok) {
+            console.error('❌ Fetch failed:', response.status, response.statusText, 'for', url);
+            
+            // Check if we're getting HTML instead of expected content
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+              console.error('🔍 Received HTML response (likely 404 page) instead of model file');
+              const htmlPreview = await response.clone().text();
+              console.error('📄 HTML content preview:', htmlPreview.substring(0, 300));
+            }
+          }
+          
+          return response;
+        } catch (fetchError) {
+          console.error('🚨 Fetch error for', url, ':', fetchError);
+          throw fetchError;
+        }
+      };
+      
+      // Load the model with proper configuration
+      const generator = await pipeline('text-generation', 'Xenova/distilgpt2', {
+        quantized: true,
         progress_callback: (data) => {
+          console.log('📊 Download progress:', data);
+          
           if (data.status === 'progress') {
-            addMessage('system', `Loading: ${data.file} (${Math.round(data.progress)}%)`);
+            const percent = Math.round(data.progress * 100);
+            const size = data.total ? `${(data.total / 1024 / 1024).toFixed(1)}MB` : '';
+            addMessage('system', `📈 Loading ${data.file}: ${percent}% ${size}`);
+          } else if (data.status === 'done') {
+            addMessage('system', `✅ Completed: ${data.file}`);
           }
         }
       });
       
-      setLlmGenerator(generator);
+      // Restore original fetch
+      window.fetch = originalFetch;
+      
+      console.log('✅ DistilGPT-2 loaded successfully');
+      setLlmGenerator(() => generator);  // Use function form to prevent React from processing generator
       setIsModelLoading(false);
-      addMessage('system', 'SmolLM loaded! Ready to help with API calls.');
+      addMessage('system', '✅ DistilGPT-2 loaded! Ready to help with API calls.');
     } catch (error) {
-      console.error('Error loading model:', error);
+      // Restore original fetch in case of error  
+      window.fetch = originalFetch;
+      
+      console.error('🚨 Model loading failed:', error);
+      
+      if (error.message && error.message.includes('Unexpected token')) {
+        console.error('🔍 JSON parsing error - received HTML instead of model files');
+        addMessage('system', '❌ Model files returned HTML (404). Check console for URLs.');
+      } else {
+        console.error('🔍 Error:', error.message);
+        addMessage('system', `❌ Model loading failed: ${error.message}`);
+      }
+      
       setIsModelLoading(false);
-      addMessage('system', '❌ Error loading model: ' + error.message + '. Using pattern matching fallback.');
-      // Still allow pattern-based functionality even if LLM fails
+      addMessage('system', 'Falling back to pattern matching for navigation.');
       setLlmGenerator(null);
     }
   }, [addMessage]);
@@ -123,7 +194,7 @@ const LLMAssistant = () => {
     if (llmGenerator) {
       try {
         console.log('🧠 Attempting LLM processing...');
-        const result = await generateFromLLM(lowerQuery);
+        const result = await generateFromLLM(query);
         console.log('✅ LLM processing successful:', result);
         return result;
       } catch (error) {
@@ -149,45 +220,59 @@ const LLMAssistant = () => {
       throw new Error('LLM not available');
     }
 
-    // Create a prompt to guide the LLM for invoice operations
-    const prompt = `You are an invoice management assistant. Analyze this query and determine the appropriate action:
-    
-Query: "${query}"
+    // Validate input
+    if (typeof query !== 'string' || !query.trim()) {
+      console.error('❌ Invalid query input:', typeof query, query);
+      throw new Error('Query must be a non-empty string');
+    }
 
-Available actions:
-- view_invoice (for specific invoice ID)
+    // Create a structured prompt for the LLM
+    const lowerQuery = query.toLowerCase().trim();
+    const prompt = `Invoice Management System
+
+User query: "${lowerQuery}"
+
+Choose the best action from these options:
 - list_invoices (show all invoices)
+- view_invoice (view specific invoice)
 - create_invoice (create new invoice)
-- edit_invoice (edit existing invoice)
 - list_customers (show customers)
 - list_products (show products)
-- show_reports (show reports)
-- overdue_invoices (show overdue invoices)
 
-Respond with just the action type:`;
+Action:`;
 
-    console.log('📝 Generated LLM prompt:', prompt);
+    console.log('📝 LLM input:', { query: lowerQuery, prompt });
     
     try {
-      console.log('⚙️ Calling LLM with parameters:', {
-        max_new_tokens: 10,
-        do_sample: false,
-        temperature: 0.1
+      console.log('⚙️ Calling LLM with input:', {
+        inputType: typeof prompt,
+        inputLength: prompt.length,
+        inputPreview: prompt.substring(0, 100)
       });
       
+      // Test if generator is callable
+      if (typeof llmGenerator !== 'function') {
+        throw new Error(`LLM generator is not a function, it's: ${typeof llmGenerator}`);
+      }
+      
+      // Call with minimal parameters to avoid issues
       const result = await llmGenerator(prompt, {
-        max_new_tokens: 10,
+        max_new_tokens: 15,  // Enough tokens for action names
         do_sample: false,
+        return_full_text: false,
         temperature: 0.1
       });
       
       console.log('🤖 Raw LLM response:', result);
       
       const generatedText = result[0]?.generated_text || '';
-      console.log('📄 Extracted generated text:', generatedText);
+      console.log('📄 Extracted generated text:', `"${generatedText}"`);
+      console.log('📄 Generated text length:', generatedText.length);
+      console.log('📄 Generated text preview:', generatedText.substring(0, 50));
       
       const actionMatch = generatedText.toLowerCase().match(/(view_invoice|list_invoices|create_invoice|edit_invoice|list_customers|list_products|show_reports|overdue_invoices)/);
       console.log('🔍 Action regex match result:', actionMatch);
+      console.log('🔍 Full text for regex:', generatedText.toLowerCase());
       
       if (actionMatch) {
         const action = actionMatch[1];
