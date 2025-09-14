@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { pipeline } from '@xenova/transformers';
 import useLLMNavigation from '../hooks/useLLMNavigation';
 import './LLMAssistant.css';
 
@@ -8,7 +9,7 @@ const LLMAssistant = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [, setLlmModel] = useState(null);
+  const [llmGenerator, setLlmGenerator] = useState(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const chatContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -34,19 +35,28 @@ const LLMAssistant = () => {
   }, []);
 
   const initializeLLM = useCallback(async () => {
-    addMessage('system', 'Initializing Invoice Assistant...');
+    addMessage('system', 'Loading SmolLM...');
     
     try {
-      // For now, we'll use a simple pattern-based approach instead of a full LLM
-      // This ensures fast, reliable responses for invoice operations
-      setLlmModel({ type: 'pattern-based', ready: true });
+      // Use a lightweight model that works well in browsers
+      const generator = await pipeline('text-generation', 'Xenova/gpt2', {
+        quantized: false,
+        progress_callback: (data) => {
+          if (data.status === 'progress') {
+            addMessage('system', `Loading: ${data.file} (${Math.round(data.progress)}%)`);
+          }
+        }
+      });
+      
+      setLlmGenerator(generator);
       setIsModelLoading(false);
-      addMessage('system', '✅ Invoice Assistant ready! Try asking: "Show all invoices", "Create new invoice", or "Show invoice #123"');
+      addMessage('system', 'SmolLM loaded! Ready to help with API calls.');
     } catch (error) {
-      console.error('Error initializing LLM:', error);
+      console.error('Error loading model:', error);
       setIsModelLoading(false);
-      addMessage('system', '❌ Error loading assistant. Using basic pattern matching.');
-      setLlmModel({ type: 'fallback', ready: true });
+      addMessage('system', '❌ Error loading model: ' + error.message + '. Using pattern matching fallback.');
+      // Still allow pattern-based functionality even if LLM fails
+      setLlmGenerator(null);
     }
   }, [addMessage]);
 
@@ -59,21 +69,37 @@ const LLMAssistant = () => {
     if (!query.trim()) return;
 
     addMessage('user', query);
+    
+    if (isModelLoading) {
+      addMessage('system', 'Model is still loading. Please wait...');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
-      // Analyze the query to determine the action
-      const action = analyzeQuery(query.toLowerCase());
+      console.log('🔍 Analyzing natural language query:', query);
       
-      addMessage('assistant', `I'll help you ${action.description}`);
+      // Analyze the query to determine API action
+      const apiAction = await determineAPIAction(query);
+      
+      console.log('⚙️ Query conversion results:', {
+        originalQuery: query,
+        detectedAction: apiAction.description,
+        method: apiAction.method || apiAction.type,
+        endpoint: apiAction.route || apiAction.endpoint,
+        requestBody: apiAction.body || 'none'
+      });
+
+      addMessage('assistant', `I'll help you ${apiAction.description}`);
 
       // Execute the appropriate action
-      if (action.type === 'navigation') {
-        await executeNavigation(action);
-      } else if (action.type === 'api_call') {
-        await executeAPIAction(action);
+      if (apiAction.type === 'navigation') {
+        await executeNavigation(apiAction);
+      } else if (apiAction.type === 'api_call') {
+        await executeAPIAction(apiAction);
       } else {
-        addMessage('assistant', action.response || 'I\'m not sure how to help with that. Try asking about invoices, customers, or products.');
+        addMessage('assistant', apiAction.response || 'I\'m not sure how to help with that. Try asking about invoices, customers, or products.');
       }
 
     } catch (error) {
@@ -84,7 +110,146 @@ const LLMAssistant = () => {
     }
   };
 
-  const analyzeQuery = (query) => {
+  const determineAPIAction = async (query) => {
+    const lowerQuery = query.toLowerCase();
+    console.log('📝 Processing query:', query);
+    console.log('🔍 Normalized query:', lowerQuery);
+    
+    // Use LLM if available, otherwise fall back to pattern matching
+    if (llmGenerator) {
+      try {
+        return await generateFromLLM(lowerQuery);
+      } catch (error) {
+        console.log('⚠️ LLM failed, falling back to pattern matching:', error.message);
+      }
+    }
+    
+    // Fallback to pattern matching for REST API
+    console.log('🔧 Using pattern matching for REST API');
+    return generateRESTFromPattern(lowerQuery);
+  };
+
+  const generateFromLLM = async (query) => {
+    if (!llmGenerator) {
+      throw new Error('LLM not available');
+    }
+
+    // Create a prompt to guide the LLM for invoice operations
+    const prompt = `You are an invoice management assistant. Analyze this query and determine the appropriate action:
+    
+Query: "${query}"
+
+Available actions:
+- view_invoice (for specific invoice ID)
+- list_invoices (show all invoices)
+- create_invoice (create new invoice)
+- edit_invoice (edit existing invoice)
+- list_customers (show customers)
+- list_products (show products)
+- show_reports (show reports)
+- overdue_invoices (show overdue invoices)
+
+Respond with just the action type:`;
+
+    try {
+      const result = await llmGenerator(prompt, {
+        max_new_tokens: 10,
+        do_sample: false,
+        temperature: 0.1
+      });
+      
+      const generatedText = result[0]?.generated_text || '';
+      const actionMatch = generatedText.toLowerCase().match(/(view_invoice|list_invoices|create_invoice|edit_invoice|list_customers|list_products|show_reports|overdue_invoices)/);
+      
+      if (actionMatch) {
+        const action = actionMatch[1];
+        return generateActionFromLLMResult(action, query);
+      } else {
+        throw new Error('Could not determine action from LLM');
+      }
+    } catch (error) {
+      throw new Error(`LLM processing failed: ${error.message}`);
+    }
+  };
+
+  const generateActionFromLLMResult = (action, originalQuery) => {
+    // Extract specific details based on the determined action
+    const invoiceIdMatch = originalQuery.match(/invoice\s*#?(\d+)/i);
+    
+    switch (action) {
+      case 'view_invoice':
+        if (invoiceIdMatch) {
+          return {
+            type: 'navigation',
+            action: 'view_invoice',
+            invoiceId: invoiceIdMatch[1],
+            route: `/invoice/${invoiceIdMatch[1]}`,
+            description: `view invoice #${invoiceIdMatch[1]}`
+          };
+        }
+        break;
+      case 'list_invoices':
+        return {
+          type: 'navigation',
+          action: 'list_invoices',
+          route: '/invoices',
+          description: 'show all invoices'
+        };
+      case 'create_invoice':
+        return {
+          type: 'navigation',
+          action: 'create_invoice',
+          route: '/invoice',
+          description: 'create a new invoice'
+        };
+      case 'edit_invoice':
+        if (invoiceIdMatch) {
+          return {
+            type: 'navigation',
+            action: 'edit_invoice',
+            invoiceId: invoiceIdMatch[1],
+            route: `/edit-invoice/${invoiceIdMatch[1]}`,
+            description: `edit invoice #${invoiceIdMatch[1]}`
+          };
+        }
+        break;
+      case 'list_customers':
+        return {
+          type: 'navigation',
+          action: 'list_customers',
+          route: '/customer',
+          description: 'show customers'
+        };
+      case 'list_products':
+        return {
+          type: 'navigation',
+          action: 'list_products',
+          route: '/product',
+          description: 'show products'
+        };
+      case 'show_reports':
+        return {
+          type: 'navigation',
+          action: 'show_reports',
+          route: '/reports',
+          description: 'show reports'
+        };
+      case 'overdue_invoices':
+        return {
+          type: 'api_call',
+          action: 'overdue_invoices',
+          endpoint: '/reports/overdue',
+          description: 'show overdue invoices'
+        };
+      default:
+        throw new Error(`Unknown action: ${action}`);
+    }
+    
+    // Fallback if action couldn't be mapped
+    throw new Error('Could not map LLM action to specific operation');
+  };
+
+  const generateRESTFromPattern = (query) => {
     // Invoice-specific pattern matching
     
     // Single invoice viewing
