@@ -71,10 +71,25 @@ export const useLLMNavigation = () => {
 
     // Create new invoice
     createInvoice: useCallback((preData = {}) => {
-      return navigateWithData('/invoice', { 
-        prefill: preData,
-        action: 'create'
-      });
+      console.log('🚀 Creating invoice with prefill data:', preData);
+
+      // Handle both old format (prefill) and new format (direct data)
+      const navigationData = {
+        action: 'create',
+        ...(preData.entities ? {
+          // New AI-extracted format
+          llmData: preData,
+          aiGenerated: true,
+          timestamp: Date.now()
+        } : {
+          // Legacy format
+          prefill: preData
+        })
+      };
+
+      console.log('📋 Navigation data being passed:', navigationData);
+
+      return navigateWithData('/invoice', navigationData);
     }, [navigateWithData]),
 
     // Edit existing invoice
@@ -153,17 +168,27 @@ export const useLLMNavigation = () => {
 
     // Create customer
     createCustomer: useCallback((preData = {}) => {
+      console.log('🏗️ Navigating to create customer with data:', preData);
+
       return navigateWithData('/customer', {
         action: 'create',
-        prefill: preData
+        prefill: preData,
+        aiGenerated: true,
+        conversationReturn: true,
+        returnToAssistant: true
       });
     }, [navigateWithData]),
 
     // Create product
     createProduct: useCallback((preData = {}) => {
+      console.log('🏗️ Navigating to create product with data:', preData);
+
       return navigateWithData('/product', {
         action: 'create',
-        prefill: preData
+        prefill: preData,
+        aiGenerated: true,
+        conversationReturn: true,
+        returnToAssistant: true
       });
     }, [navigateWithData])
   };
