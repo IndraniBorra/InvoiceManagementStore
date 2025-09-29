@@ -4,6 +4,8 @@ import { pipeline, env } from '@xenova/transformers';
 import useLLMNavigation from '../hooks/useLLMNavigation';
 import { EntityResolver } from '../services/entityResolver';
 import { intentClassifier } from '../services/intentClassifier';
+import { processCustomerCreationWithEntities, processProductCreationWithEntities, processEnhancedInvoiceCreation, handleConversationalResponse } from '../services/conversationalCreation';
+import { classifyFollowUpResponse, correlateQuestionResponse, contextGuards, conversationDebugger, calculateNewCommandConfidence, handleAmbiguousCase, conversationMemory, conversationRecovery } from '../utils/nlpEntityExtractor';
 import './LLMAssistant.css';
 
 // Configure transformers environment for browser compatibility
@@ -19,8 +21,8 @@ const LLMAssistant = () => {
   const [llmGenerator, setLlmGenerator] = useState(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
 
-  // Conversation state management
-  const [conversationState, setConversationState] = useState({
+  // Enhanced conversation state management with Phase 3 entity memory and error safety
+  const getDefaultConversationState = () => ({
     isActive: false,
     step: null, // 'customer_resolution', 'product_resolution', 'final_confirmation'
     extractedEntities: null,
@@ -28,7 +30,66 @@ const LLMAssistant = () => {
     resolvedCustomer: null,
     resolvedProducts: [],
     currentProductIndex: 0,
-    awaitingUserChoice: false
+    awaitingUserChoice: false,
+    // Phase 2: Conversational awareness fields
+    lastQuestion: null, // What the assistant last asked
+    expectedResponseTypes: [], // Valid response types for current context
+    conversationHistory: [], // Semantic context history
+    pendingAction: null, // Action awaiting user response
+    contextData: null, // Data associated with current context
+    // Phase 3: Enhanced entity memory system (with safe defaults)
+    entityMemory: {
+      originalRequest: null,        // User's original complete request
+      discussedEntities: [],        // All entities mentioned in conversation
+      activeEntities: {            // Currently relevant entities
+        customer: null,
+        product: null,
+        invoice: null
+      },
+      operationContext: {          // Context for current operation
+        operation: null,           // 'create_customer', 'create_product', 'create_invoice'
+        userGoal: null,           // What user is trying to accomplish
+        extractedData: null,      // Original extracted data from user request
+        foundSimilar: null,       // Similar entities found during search
+        userChoice: null          // User's choice when given options
+      },
+      sessionData: {
+        startTime: Date.now(),
+        messageCount: 0,
+        successfulOperations: 0,
+        lastActivity: Date.now()
+      }
+    }
+  });
+
+  const [conversationState, setConversationState] = useState(() => {
+    try {
+      return getDefaultConversationState();
+    } catch (error) {
+      console.error('❌ Error initializing conversation state:', error);
+      return {
+        isActive: false,
+        step: null,
+        extractedEntities: null,
+        resolution: null,
+        resolvedCustomer: null,
+        resolvedProducts: [],
+        currentProductIndex: 0,
+        awaitingUserChoice: false,
+        lastQuestion: null,
+        expectedResponseTypes: [],
+        conversationHistory: [],
+        pendingAction: null,
+        contextData: null,
+        entityMemory: {
+          originalRequest: null,
+          discussedEntities: [],
+          activeEntities: { customer: null, product: null, invoice: null },
+          operationContext: { operation: null, userGoal: null, extractedData: null, foundSimilar: null, userChoice: null },
+          sessionData: { startTime: Date.now(), messageCount: 0, successfulOperations: 0, lastActivity: Date.now() }
+        }
+      };
+    }
   });
 
   const chatContainerRef = useRef(null);
@@ -74,8 +135,176 @@ const LLMAssistant = () => {
     setConversationState(prev => ({ ...prev, ...updates }));
   }, []);
 
+  // Phase 3: Enhanced entity memory management utilities with error safety
+  const updateEntityMemory = useCallback((updates) => {
+    try {
+      setConversationState(prev => {
+        // Ensure prev.entityMemory exists with safe defaults
+        const currentEntityMemory = prev.entityMemory || {
+          originalRequest: null,
+          discussedEntities: [],
+          activeEntities: { customer: null, product: null, invoice: null },
+          operationContext: { operation: null, userGoal: null, extractedData: null, foundSimilar: null, userChoice: null },
+          sessionData: { startTime: Date.now(), messageCount: 0, successfulOperations: 0, lastActivity: Date.now() }
+        };
+
+        const currentSessionData = currentEntityMemory.sessionData || {
+          startTime: Date.now(),
+          messageCount: 0,
+          successfulOperations: 0,
+          lastActivity: Date.now()
+        };
+
+        return {
+          ...prev,
+          entityMemory: {
+            ...currentEntityMemory,
+            ...updates,
+            sessionData: {
+              ...currentSessionData,
+              lastActivity: Date.now(),
+              messageCount: (currentSessionData.messageCount || 0) + 1
+            }
+          }
+        };
+      });
+    } catch (error) {
+      console.error('❌ Error updating entity memory:', error);
+      // Continue without crashing - entity memory is not critical for basic functionality
+    }
+  }, []);
+
+  const addDiscussedEntity = useCallback((entityType, entityData) => {
+    setConversationState(prev => ({
+      ...prev,
+      entityMemory: {
+        ...prev.entityMemory,
+        discussedEntities: [
+          ...prev.entityMemory.discussedEntities,
+          {
+            type: entityType,
+            data: entityData,
+            timestamp: Date.now(),
+            context: prev.step
+          }
+        ],
+        activeEntities: {
+          ...prev.entityMemory.activeEntities,
+          [entityType]: entityData
+        },
+        sessionData: {
+          ...prev.entityMemory.sessionData,
+          lastActivity: Date.now()
+        }
+      }
+    }));
+  }, []);
+
+  const buildContextualPrompt = useCallback((userMessage) => {
+    try {
+      const entityMemory = conversationState?.entityMemory || {};
+      const activeEntities = entityMemory.activeEntities || {};
+      const operationContext = entityMemory.operationContext || {};
+      const sessionData = entityMemory.sessionData || {};
+
+      return `
+=== ENHANCED CONVERSATIONAL CONTEXT ===
+
+ORIGINAL USER REQUEST:
+${entityMemory.originalRequest || 'None'}
+
+CURRENT OPERATION:
+- Type: ${operationContext.operation || 'None'}
+- Goal: ${operationContext.userGoal || 'None'}
+- User's Original Data: ${operationContext.extractedData ? JSON.stringify(operationContext.extractedData) : 'None'}
+
+SIMILAR ENTITIES FOUND:
+${operationContext.foundSimilar ? JSON.stringify(operationContext.foundSimilar) : 'None'}
+
+ACTIVE ENTITIES IN DISCUSSION:
+- Customer: ${activeEntities.customer?.name || activeEntities.customer?.customer_name || 'None'}
+- Product: ${activeEntities.product?.product_description || 'None'}
+- Invoice: ${activeEntities.invoice?.id || 'None'}
+
+CONVERSATION STATE:
+- Step: ${conversationState?.step || 'None'}
+- Last Question: "${conversationState?.lastQuestion || 'None'}"
+- Awaiting Choice: ${conversationState?.awaitingUserChoice || false}
+
+REFERENCE RESOLUTION RULES:
+- "it", "that product" → ${activeEntities.product?.product_description || 'the product being discussed'}
+- "the customer", "them" → ${activeEntities.customer?.name || activeEntities.customer?.customer_name || 'the customer being discussed'}
+- "create new" → Create the original entity user requested: ${operationContext.extractedData ? JSON.stringify(operationContext.extractedData) : 'original request'}
+- "use existing" → Use the similar entity found: ${operationContext.foundSimilar ? JSON.stringify(operationContext.foundSimilar) : 'found entity'}
+
+SESSION CONTEXT:
+- Messages Exchanged: ${sessionData.messageCount || 0}
+- Session Duration: ${sessionData.startTime ? Math.round((Date.now() - sessionData.startTime) / 1000) : 0} seconds
+- Successful Operations: ${sessionData.successfulOperations || 0}
+
+CURRENT USER MESSAGE: "${userMessage || ''}"
+
+This is a follow-up message in an active conversation. Use the context above to understand references and provide contextually appropriate responses.
+`;
+    } catch (error) {
+      console.error('❌ Error building contextual prompt:', error);
+      return `
+=== BASIC CONVERSATIONAL CONTEXT ===
+
+CURRENT USER MESSAGE: "${userMessage || ''}"
+
+This is a conversation message. Please respond appropriately.
+`;
+    }
+  }, [conversationState]);
+
+  // Phase 3: Session persistence utilities
+  const saveConversationSession = useCallback(() => {
+    try {
+      const sessionData = {
+        conversationState,
+        messages: messages.slice(-20), // Save last 20 messages
+        timestamp: Date.now()
+      };
+      localStorage.setItem('invoiceAssistantSession', JSON.stringify(sessionData));
+      console.log('💾 Conversation session saved');
+    } catch (error) {
+      console.error('❌ Failed to save conversation session:', error);
+    }
+  }, [conversationState, messages]);
+
+  const restoreConversationSession = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('invoiceAssistantSession');
+      if (saved) {
+        const sessionData = JSON.parse(saved);
+        const age = Date.now() - sessionData.timestamp;
+        const maxAge = 30 * 60 * 1000; // 30 minutes
+
+        if (age < maxAge) {
+          console.log('🔄 Restoring conversation session');
+          setConversationState(sessionData.conversationState);
+          setMessages(sessionData.messages);
+          addMessage('system', `Session restored (${Math.round(age / 1000)} seconds ago)`);
+          return true;
+        } else {
+          console.log('⏰ Session expired, starting fresh');
+          localStorage.removeItem('invoiceAssistantSession');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to restore conversation session:', error);
+    }
+    return false;
+  }, [addMessage]);
+
+  const clearConversationSession = useCallback(() => {
+    localStorage.removeItem('invoiceAssistantSession');
+    console.log('🗑️ Conversation session cleared');
+  }, []);
+
   const resetConversation = useCallback(() => {
-    setConversationState({
+    setConversationState(prevState => ({
       isActive: false,
       step: null,
       extractedEntities: null,
@@ -83,8 +312,33 @@ const LLMAssistant = () => {
       resolvedCustomer: null,
       resolvedProducts: [],
       currentProductIndex: 0,
-      awaitingUserChoice: false
-    });
+      awaitingUserChoice: false,
+      lastQuestion: null,
+      expectedResponseTypes: [],
+      conversationHistory: [],
+      pendingAction: null,
+      contextData: null,
+      entityMemory: {
+        originalRequest: null,
+        discussedEntities: [],
+        activeEntities: {
+          customer: null,
+          product: null,
+          invoice: null
+        },
+        operationContext: {
+          operation: null,
+          userGoal: null,
+          extractedData: null,
+          foundSimilar: null,
+          userChoice: null
+        },
+        sessionData: {
+          ...(prevState.entityMemory?.sessionData || { startTime: Date.now(), messageCount: 0, successfulOperations: 0 }), // Preserve session data with null safety
+          lastActivity: Date.now()
+        }
+      }
+    }));
   }, []);
 
   const initializeLLM = useCallback(async () => {
@@ -179,19 +433,335 @@ const LLMAssistant = () => {
     }
   }, [addMessage]);
 
-  // Initialize the LLM model when component mounts
+  // Initialize the LLM model and restore session when component mounts
   useEffect(() => {
-    initializeLLM();
-  }, [initializeLLM]);
+    const initializeApp = async () => {
+      try {
+        // Try to restore previous session first
+        const saved = localStorage.getItem('invoiceAssistantSession');
+        let restored = false;
+
+        if (saved) {
+          try {
+            const sessionData = JSON.parse(saved);
+            const age = Date.now() - sessionData.timestamp;
+            const maxAge = 30 * 60 * 1000; // 30 minutes
+
+            if (age < maxAge) {
+              console.log('🔄 Restoring conversation session');
+              setConversationState(sessionData.conversationState || getDefaultConversationState());
+              setMessages(sessionData.messages || []);
+              addMessage('system', `Session restored (${Math.round(age / 1000)} seconds ago)`);
+              restored = true;
+            } else {
+              console.log('⏰ Session expired, starting fresh');
+              localStorage.removeItem('invoiceAssistantSession');
+            }
+          } catch (error) {
+            console.error('❌ Failed to restore conversation session:', error);
+          }
+        }
+
+        if (!restored) {
+          // Only initialize LLM if no session was restored
+          initializeLLM();
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize app:', error);
+        // Continue with LLM initialization as fallback
+        initializeLLM();
+      }
+    };
+
+    initializeApp();
+  }, []); // Empty dependencies to run only once on mount
+
+  // Auto-save conversation session when state changes (using ref to avoid circular dependencies)
+  const saveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (conversationState.isActive || messages.length > 1) {
+      // Clear any existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      // Set new timeout without circular dependency
+      saveTimeoutRef.current = setTimeout(() => {
+        try {
+          const sessionData = {
+            conversationState,
+            messages: messages.slice(-20), // Save last 20 messages
+            timestamp: Date.now()
+          };
+          localStorage.setItem('invoiceAssistantSession', JSON.stringify(sessionData));
+          console.log('💾 Conversation session auto-saved');
+        } catch (error) {
+          console.error('❌ Failed to auto-save conversation session:', error);
+        }
+      }, 1000); // Save 1 second after state changes
+    }
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [conversationState, messages]);
 
   const processQuery = async (query) => {
-    if (!query.trim()) return;
+    try {
+      if (!query.trim()) return;
 
-    addMessage('user', query);
+      addMessage('user', query);
 
-    if (isModelLoading) {
-      addMessage('system', 'Model is still loading. Please wait...');
+      if (isModelLoading) {
+        addMessage('system', 'Model is still loading. Please wait...');
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Critical error in processQuery initialization:', error);
+      addMessage('system', '❌ An error occurred. Please try again.');
       return;
+    }
+
+    // Phase 2: Proactive Context Recovery Check (with null safety and error handling)
+    try {
+      if (!conversationState.isActive && conversationState.conversationHistory?.length > 0) {
+        const contextLossCheck = conversationRecovery.detectContextLoss(
+          conversationState,
+          query,
+          conversationState.conversationHistory
+        );
+
+        if (contextLossCheck.contextLost && contextLossCheck.severity === 'high') {
+          conversationDebugger.logDecision(
+            'Proactive Context Recovery',
+            { contextLoss: contextLossCheck },
+            'Attempting to recover lost conversation state'
+          );
+
+          const recovery = conversationRecovery.recoverContext(
+            contextLossCheck,
+            conversationState.conversationHistory,
+            addMessage
+          );
+
+          if (recovery.success && recovery.restoredState) {
+            updateConversationState(recovery.restoredState);
+            return; // Let user respond to recovery message
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in context recovery:', error);
+      // Continue with normal processing if context recovery fails
+    }
+
+    // Enhanced Phase 1 Classification Pipeline
+    if (conversationState.isActive && conversationState.awaitingUserChoice) {
+      conversationDebugger.debugConversationState(query, null, conversationState, 'initial_check');
+
+      setIsLoading(true);
+
+      try {
+        // Step 1: Context Validation Guards
+        conversationDebugger.logDecision(
+          'Context Validation',
+          { conversationActive: conversationState.isActive, awaitingChoice: conversationState.awaitingUserChoice },
+          'Proceeding with context validation'
+        );
+
+        if (!contextGuards.isInConversation(conversationState)) {
+          conversationDebugger.logDecision('Context Guard Failed', { reason: 'not_in_conversation' }, 'Treating as new command');
+          resetConversation();
+          // Continue to process as new command below
+        } else {
+          // Step 2: Question-Response Correlation
+          const correlation = correlateQuestionResponse(conversationState.lastQuestion, query);
+          conversationDebugger.debugContextValidation(query, conversationState, correlation);
+
+          if (!correlation.isValidFollowUp) {
+            conversationDebugger.logDecision(
+              'Low Correlation Detected',
+              { correlationScore: correlation.correlationScore, threshold: 0.6 },
+              'Checking if this is a new command'
+            );
+
+            // Check if this is actually a new command with high confidence
+            const newCommandConfidence = calculateNewCommandConfidence(query, conversationState);
+            if (newCommandConfidence > 0.7) {
+              conversationDebugger.logDecision(
+                'New Command Detected',
+                { newCommandConfidence },
+                'Resetting conversation and treating as new command'
+              );
+              resetConversation();
+              setIsLoading(false);
+              // Continue to process as new command below
+            } else {
+              conversationDebugger.logDecision(
+                'Unclear Response',
+                { correlationScore: correlation.correlationScore, newCommandConfidence },
+                'Asking for clarification'
+              );
+              addMessage('assistant', `I'm not sure how to interpret "${query}" in this context. Are you trying to:\n• Use the existing ${conversationState.step === 'product_resolution' ? 'product' : 'customer'}\n• Create a new ${conversationState.step === 'product_resolution' ? 'product' : 'customer'}\n• Start a completely new request?`);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Step 3: Enhanced Confidence-Based Classification with Phase 2 Integration
+            let followUpClassification = classifyFollowUpResponse(
+              query,
+              conversationState.step === 'customer_resolution' ? 'customer_choice' :
+              conversationState.step === 'product_resolution' ? 'product_choice' :
+              conversationState.step === 'final_confirmation' ? 'confirmation' :
+              'entity_choice'
+            );
+
+            // Phase 2: Semantic Analysis for Ambiguous Cases
+            if (followUpClassification.confidence < 0.7) {
+              conversationDebugger.logDecision(
+                'Low Confidence - Applying Semantic Analysis',
+                { originalConfidence: followUpClassification.confidence },
+                'Running semantic similarity analysis'
+              );
+
+              followUpClassification = await handleAmbiguousCase(
+                query,
+                followUpClassification,
+                conversationState
+              );
+            }
+
+            // Step 4: Context Loss Detection and Recovery
+            const contextLossDetection = conversationRecovery.detectContextLoss(
+              conversationState,
+              query,
+              conversationState.conversationHistory
+            );
+
+            if (contextLossDetection.contextLost) {
+              conversationDebugger.logDecision(
+                'Context Loss Detected',
+                {
+                  reason: contextLossDetection.reason,
+                  severity: contextLossDetection.severity
+                },
+                'Attempting conversation recovery'
+              );
+
+              const recovery = conversationRecovery.recoverContext(
+                contextLossDetection,
+                conversationState.conversationHistory,
+                addMessage
+              );
+
+              if (recovery.success && recovery.restoredState) {
+                updateConversationState(recovery.restoredState);
+              }
+
+              setIsLoading(false);
+              return;
+            }
+
+            // Step 5: Enhanced Memory Management
+            const updatedHistory = conversationMemory.addExchange(
+              conversationState.conversationHistory,
+              {
+                userResponse: query,
+                classification: followUpClassification,
+                context: conversationState.step,
+                correlation: correlation
+              }
+            );
+
+            // Step 6: Debug and Decision Logging
+            conversationDebugger.debugConversationState(query, followUpClassification, conversationState, 'phase2_classification_complete');
+
+            if (followUpClassification.confidence >= 0.6) {
+              conversationDebugger.logDecision(
+                'Enhanced Follow-up Response Classified',
+                {
+                  intent: followUpClassification.intent,
+                  action: followUpClassification.action,
+                  confidence: followUpClassification.confidence,
+                  enhancedBy: followUpClassification.enhancedBy || 'original_classification',
+                  allScores: followUpClassification.allScores,
+                  semanticAnalysis: followUpClassification.semanticAnalysis || null
+                },
+                `Processing as ${followUpClassification.action}`
+              );
+
+              // Update conversation state with enhanced history
+              updateConversationState({
+                conversationHistory: updatedHistory
+              });
+
+              // Phase 3: Update entity memory with user choice (with null safety)
+              updateEntityMemory({
+                operationContext: {
+                  ...(conversationState.entityMemory?.operationContext || {}),
+                  userChoice: followUpClassification.action
+                }
+              });
+
+              // Generate contextual prompt for better AI understanding
+              const contextualPrompt = buildContextualPrompt(query);
+              console.log('🎯 Enhanced contextual prompt generated:', contextualPrompt);
+
+              // Handle the follow-up based on enhanced classification
+              await handleClassifiedFollowUpResponse(followUpClassification, query);
+            } else {
+              // Phase 2: Enhanced Error Handling with Memory Context
+              const relevantContext = conversationMemory.getRelevantContext(
+                conversationState.conversationHistory,
+                conversationState
+              );
+
+              const patterns = conversationMemory.extractConversationPatterns(relevantContext);
+
+              let clarificationMessage = "I understand you're responding, but I'm not sure what action to take.";
+
+              // Provide context-aware clarification based on conversation patterns
+              if (Object.keys(patterns.commonActions).length > 0) {
+                const commonAction = Object.keys(patterns.commonActions)[0];
+                if (commonAction === 'create_new') {
+                  clarificationMessage += " Based on our conversation, you seem to prefer creating new items. Did you want to create something new?";
+                } else if (commonAction === 'use_existing') {
+                  clarificationMessage += " Based on our conversation, you seem to prefer using existing items. Did you want to use an existing option?";
+                }
+              } else {
+                clarificationMessage += " Could you please clarify: do you want to use the existing option or create a new one?";
+              }
+
+              conversationDebugger.logDecision(
+                'Enhanced Low Confidence Classification',
+                {
+                  confidence: followUpClassification.confidence,
+                  threshold: 0.6,
+                  conversationPatterns: patterns,
+                  relevantContextCount: relevantContext.length
+                },
+                'Asking context-aware clarification'
+              );
+
+              addMessage('assistant', clarificationMessage);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error in enhanced classification pipeline:', error);
+        addMessage('system', 'Sorry, there was an error processing your response.');
+      } finally {
+        setIsLoading(false);
+      }
+
+      if (!conversationState.isActive) {
+        // Conversation was reset, continue to process as new command
+      } else {
+        // Response was handled, return
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -247,7 +817,7 @@ const LLMAssistant = () => {
         }
       } else if (action.type === 'conversation') {
         console.log('💬 Conversation action detected:', action);
-        await executeConversationalFlow(action);
+        await executeConversationalFlow(action, query);
       } else if (action.type === 'help') {
         console.log('❓ Help action detected');
         addMessage('assistant', action.response);
@@ -966,9 +1536,105 @@ Action:`;
     }
   };
 
-  const executeConversationalFlow = async (action) => {
-    console.log('🗣️ === CONVERSATIONAL FLOW START ===');
+  const executeConversationalFlow = async (action, query) => {
+    console.log('🗣️ === ENHANCED CONVERSATIONAL FLOW START ===');
     console.log('📋 Starting conversational flow for action:', action);
+    console.log('📝 Query:', query);
+
+    try {
+      // Handle different types of conversational flows
+      switch (action.action) {
+        case 'create_customer_with_entities':
+          console.log('👤 Processing customer creation with entities');
+          const customerResult = await processCustomerCreationWithEntities(query, addMessage, navigate);
+
+          if (customerResult.success && customerResult.action === 'similar_customer_found') {
+            // Update conversation state to handle user response
+            updateConversationState({
+              isActive: true,
+              step: 'customer_resolution',
+              awaitingUserChoice: true,
+              lastQuestion: `Similar customer found: ${customerResult.suggestion.customer_name}. Use existing or create new?`,
+              expectedResponseTypes: ['use_existing', 'create_new'],
+              contextData: {
+                customer: customerResult.suggestion,
+                customerData: customerResult.extractedData
+              }
+            });
+          }
+          break;
+
+        case 'create_product_with_entities':
+          console.log('📦 Processing product creation with entities');
+          const productResult = await processProductCreationWithEntities(query, addMessage, navigate);
+
+          if (productResult.success && productResult.action === 'similar_product_found') {
+            // Enhanced Phase 3: Update conversation state with entity memory
+            updateConversationState({
+              isActive: true,
+              step: 'product_resolution',
+              awaitingUserChoice: true,
+              lastQuestion: `Similar product found: ${productResult.suggestion.product_description} ($${productResult.suggestion.product_price}). Use existing or create new?`,
+              expectedResponseTypes: ['use_existing', 'create_new'],
+              contextData: {
+                product: productResult.suggestion,
+                productData: productResult.extractedData,
+                quantity: 1
+              }
+            });
+
+            // Update entity memory with rich context
+            updateEntityMemory({
+              originalRequest: query,
+              operationContext: {
+                operation: 'create_product',
+                userGoal: 'Create a new product',
+                extractedData: productResult.extractedData,
+                foundSimilar: productResult.suggestion,
+                userChoice: null
+              }
+            });
+
+            // Add entities to discussion history
+            addDiscussedEntity('product', productResult.extractedData);
+          }
+          break;
+
+        case 'create_invoice_with_entities':
+          console.log('🧾 Processing enhanced invoice creation with entities');
+          const invoiceResult = await processEnhancedInvoiceCreation(query, addMessage, navigate);
+
+          if (invoiceResult.success && invoiceResult.action === 'needs_creation_confirmation') {
+            // Update conversation state to handle user response
+            updateConversationState({
+              isActive: true,
+              step: 'invoice_confirmation',
+              awaitingUserChoice: true,
+              currentContext: invoiceResult
+            });
+          }
+          break;
+
+        case 'guided_creation':
+          // Legacy flow - handle the existing invoice creation with entities
+          console.log('🔄 Processing legacy guided creation flow');
+          await executeLegacyConversationalFlow(action);
+          break;
+
+        default:
+          console.log('❓ Unknown conversational action:', action.action);
+          addMessage('assistant', 'I\'m not sure how to handle that request. Could you please try rephrasing?');
+      }
+
+    } catch (error) {
+      console.error('💥 Conversational flow error:', error);
+      addMessage('system', 'Sorry, there was an error processing your request.');
+    }
+  };
+
+  const executeLegacyConversationalFlow = async (action) => {
+    console.log('🗣️ === LEGACY CONVERSATIONAL FLOW START ===');
+    console.log('📋 Starting legacy conversational flow for action:', action);
 
     try {
       const { prefillData } = action;
@@ -1495,6 +2161,82 @@ ${productList}
     });
 
     updateConversationState({ awaitingUserChoice: true });
+  };
+
+  const handleClassifiedFollowUpResponse = async (classification, originalResponse) => {
+    console.log('🎯 === HANDLING CLASSIFIED FOLLOW-UP RESPONSE ===');
+    console.log('📋 Classification:', classification);
+    console.log('📝 Original response:', originalResponse);
+    console.log('🔄 Current step:', conversationState.step);
+
+    try {
+      // Update conversation state to indicate we're processing the response
+      updateConversationState({
+        awaitingUserChoice: false,
+        lastQuestion: null
+      });
+
+      switch (classification.action) {
+        case 'use_existing':
+          console.log('✅ User chose to use existing entity');
+
+          if (conversationState.step === 'customer_resolution' && conversationState.contextData?.customer) {
+            // Use existing customer
+            await handleConversationAction('use_existing_customer', conversationState.contextData?.customer);
+          } else if (conversationState.step === 'product_resolution' && conversationState.contextData?.product) {
+            // Use existing product
+            await handleConversationAction('use_existing_product', {
+              product: conversationState.contextData?.product,
+              quantity: conversationState.contextData?.quantity || 1
+            });
+          } else {
+            addMessage('system', '❌ Unable to process "use existing" - missing context data.');
+          }
+          break;
+
+        case 'create_new':
+          console.log('➕ User chose to create new entity');
+
+          if (conversationState.step === 'customer_resolution' && conversationState.contextData?.customerData) {
+            // Create new customer
+            await handleConversationAction('create_new_customer', conversationState.contextData?.customerData);
+          } else if (conversationState.step === 'product_resolution' && conversationState.contextData?.productData) {
+            // Create new product
+            await handleConversationAction('create_new_product', conversationState.contextData?.productData);
+          } else {
+            addMessage('system', '❌ Unable to process "create new" - missing context data.');
+          }
+          break;
+
+        case 'confirm':
+          console.log('✅ User confirmed the action');
+
+          if (conversationState.step === 'final_confirmation') {
+            await handleConversationAction('create_invoice_final');
+          } else {
+            addMessage('assistant', '✅ Confirmed! Proceeding...');
+          }
+          break;
+
+        case 'cancel_or_review':
+          console.log('📝 User wants to review or cancel');
+
+          if (conversationState.step === 'final_confirmation') {
+            await handleConversationAction('review_details');
+          } else {
+            addMessage('assistant', '🔄 Let me help you review the details...');
+          }
+          break;
+
+        default:
+          console.log('❓ Unknown follow-up action:', classification.action);
+          addMessage('assistant', "I understand you're responding, but I'm not sure what action to take. Could you be more specific?");
+      }
+
+    } catch (error) {
+      console.error('❌ Error handling classified follow-up response:', error);
+      addMessage('system', 'Sorry, there was an error processing your response. Please try again.');
+    }
   };
 
   const handleConversationAction = async (actionType, actionData = null) => {

@@ -219,7 +219,18 @@ export class IntentClassifier {
       };
     }
 
-    // Invoice creation
+    // Enhanced invoice creation with entities detection
+    if (lowerQuery.match(/(?:create|new|make|generate).*?invoice.*?(?:for|customer|phone|\$|at)/)) {
+      return {
+        intent: 'create_invoice_with_data',
+        confidence: 0.95,
+        entities: {},
+        originalQuery: query,
+        method: 'fallback'
+      };
+    }
+
+    // Simple invoice creation
     if (lowerQuery.match(/(?:create|new|add|make|generate).*?invoice|invoice.*?(?:create|new|add|make)/)) {
       return {
         intent: 'create_invoice',
@@ -242,11 +253,33 @@ export class IntentClassifier {
       };
     }
 
+    // Customer creation with data
+    if (lowerQuery.match(/(?:create|add|new)\s+customer.*?(?:email|phone|address|with)/)) {
+      return {
+        intent: 'create_customer_with_data',
+        confidence: 0.95,
+        entities: {},
+        originalQuery: query,
+        method: 'fallback'
+      };
+    }
+
     // Customer listing
     if (lowerQuery.match(/(?:show|list|display|view|get).*?(?:all\s+)?customers?(?:\s+list)?|(?:all\s+)?customers?\s*$|my\s+customers?/)) {
       return {
         intent: 'list_customers',
         confidence: 0.9,
+        entities: {},
+        originalQuery: query,
+        method: 'fallback'
+      };
+    }
+
+    // Product creation with data
+    if (lowerQuery.match(/(?:create|add|new)\s+product.*?(?:price|cost|\$|priced|for)/)) {
+      return {
+        intent: 'create_product_with_data',
+        confidence: 0.95,
         entities: {},
         originalQuery: query,
         method: 'fallback'
@@ -405,13 +438,24 @@ export class IntentClassifier {
         };
 
       case 'create_customer_with_data':
-      case 'create_product_with_data':
-      case 'create_invoice_with_data':
-        // These are handled by the existing entity extraction logic
         return {
           type: 'conversation',
-          action: 'guided_creation',
-          description: 'start guided creation process'
+          action: 'create_customer_with_entities',
+          description: 'create customer from natural language'
+        };
+
+      case 'create_product_with_data':
+        return {
+          type: 'conversation',
+          action: 'create_product_with_entities',
+          description: 'create product from natural language'
+        };
+
+      case 'create_invoice_with_data':
+        return {
+          type: 'conversation',
+          action: 'create_invoice_with_entities',
+          description: 'create invoice from natural language'
         };
 
       case 'help':
