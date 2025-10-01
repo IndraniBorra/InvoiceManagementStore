@@ -192,31 +192,51 @@ export class IntentClassifier {
    * @returns {Object} Classification result
    */
   fallbackClassification(query) {
-    console.log('🔄 Using enhanced fallback pattern matching');
+    console.log('🔄 === FALLBACK CLASSIFICATION START ===');
+    console.log('📝 Original query:', `"${query}"`);
 
     const lowerQuery = query.toLowerCase().trim();
+    console.log('📝 Lowercase query:', `"${lowerQuery}"`);
 
-    // Invoice listing patterns - most common request
-    if (lowerQuery.match(/(?:show|list|display|view|get).*?(?:all\s+)?invoices?(?:\s+list)?|(?:all\s+)?invoices?\s*$|my\s+invoices?/)) {
-      return {
-        intent: 'list_invoices',
-        confidence: 0.9,
-        entities: {},
-        originalQuery: query,
-        method: 'fallback'
-      };
-    }
+    // IMPORTANT: Check specific patterns before general ones!
 
-    // Specific invoice viewing with ID
-    if (lowerQuery.match(/(?:show|view|display|get).*?invoice.*?[#\s]*(\d+)|invoice\s*[#]*(\d+)/)) {
+    // Specific invoice viewing with ID (check this FIRST)
+    const viewInvoicePattern = /(?:show|view|display|get).*?invoice.*?[#\s]*(\d+)|invoice\s*[#]*(\d+)/;
+    console.log('🔍 Testing view_invoice pattern:', viewInvoicePattern);
+    const viewInvoiceMatch = lowerQuery.match(viewInvoicePattern);
+    console.log('🔍 view_invoice match result:', viewInvoiceMatch);
+
+    if (viewInvoiceMatch) {
       const invoiceIdMatch = query.match(/(?:invoice|#)\s*(\d+)/i) || query.match(/(\d+)/);
-      return {
+      console.log('🔍 Invoice ID extraction:', invoiceIdMatch);
+      const result = {
         intent: 'view_invoice',
         confidence: 0.9,
         entities: invoiceIdMatch ? { invoiceId: invoiceIdMatch[1] } : {},
         originalQuery: query,
         method: 'fallback'
       };
+      console.log('✅ CLASSIFIED AS: view_invoice', result);
+      return result;
+    }
+
+    // Invoice listing patterns - check AFTER specific invoice patterns
+    // More specific patterns to avoid false matches with singular invoice requests
+    const listInvoicesPattern = /(?:show|list|display|view|get)\s+(?:all\s+)?invoices(?:\s+list)?$|(?:show|list|display|view|get)\s+invoices\s*$|^(?:all\s+)?invoices\s*$|^my\s+invoices?$|(?:show|list|display|view|get)\s+all\s+invoices?/;
+    console.log('🔍 Testing list_invoices pattern:', listInvoicesPattern);
+    const listInvoicesMatch = lowerQuery.match(listInvoicesPattern);
+    console.log('🔍 list_invoices match result:', listInvoicesMatch);
+
+    if (listInvoicesMatch) {
+      const result = {
+        intent: 'list_invoices',
+        confidence: 0.9,
+        entities: {},
+        originalQuery: query,
+        method: 'fallback'
+      };
+      console.log('✅ CLASSIFIED AS: list_invoices', result);
+      return result;
     }
 
     // Enhanced invoice creation with entities detection
@@ -275,11 +295,24 @@ export class IntentClassifier {
       };
     }
 
-    // Product creation with data
-    if (lowerQuery.match(/(?:create|add|new)\s+product.*?(?:price|cost|\$|priced|for)/)) {
+    // Product creation with data - enhanced patterns to catch various price formats
+    if (lowerQuery.match(/(?:create|add|new)\s+(?:a\s+)?(?:new\s+)?product.*?(?:with.*?(?:price|cost|\$|priced)|(?:price|cost|priced).*?(?:tag|at|of)|\$\d+|for\s*\$|\d+\$|costs?\s*\$|\d+\s+dollars?)/)) {
+      console.log('✅ Matched create_product_with_data pattern');
       return {
         intent: 'create_product_with_data',
         confidence: 0.95,
+        entities: {},
+        originalQuery: query,
+        method: 'fallback'
+      };
+    }
+
+    // Simple product creation (fallback - no price data)
+    if (lowerQuery.match(/(?:create|add|new)\s+(?:a\s+)?(?:new\s+)?product(?:\s+[\w\s]+)?$|(?:create|add|new).*?product(?!\s*.*(?:price|cost|\$|priced|for))/)) {
+      console.log('✅ Matched simple create_product pattern');
+      return {
+        intent: 'create_product',
+        confidence: 0.8,
         entities: {},
         originalQuery: query,
         method: 'fallback'
@@ -331,13 +364,16 @@ export class IntentClassifier {
     }
 
     // Unknown intent
-    return {
+    console.log('❓ No patterns matched - returning unknown intent');
+    const result = {
       intent: 'unknown',
       confidence: 0.0,
       entities: {},
       originalQuery: query,
       method: 'fallback'
     };
+    console.log('❓ CLASSIFIED AS: unknown', result);
+    return result;
   }
 
   /**
@@ -449,6 +485,14 @@ export class IntentClassifier {
           type: 'conversation',
           action: 'create_product_with_entities',
           description: 'create product from natural language'
+        };
+
+      case 'create_product':
+        return {
+          type: 'navigation',
+          action: 'create_product',
+          route: '/product',
+          description: 'create new product'
         };
 
       case 'create_invoice_with_data':

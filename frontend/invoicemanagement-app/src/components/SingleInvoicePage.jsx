@@ -11,6 +11,12 @@ const SingleInvoicePage = () => {
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState(null);
 
+  // Debug logging for navigation verification
+  console.log('📋 === SingleInvoicePage component loaded ===');
+  console.log('📋 Route parameter ID:', id);
+  console.log('📋 ID type:', typeof id);
+  console.log('📋 Current URL:', window.location.pathname);
+
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadPDF = () => {

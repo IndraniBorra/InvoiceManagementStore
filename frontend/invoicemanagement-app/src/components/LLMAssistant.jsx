@@ -804,16 +804,56 @@ This is a conversation message. Please respond appropriately.
 
       if (action.type === 'navigation') {
         console.log('🧭 Navigation action detected:', action);
-        addMessage('assistant', `Navigating to ${action.description}...`);
+        console.log('🔍 Navigation action details:', JSON.stringify(action, null, 2));
 
+        // Provide more specific initial message based on action type
+        let initialMessage;
+        if (action.action === 'view_invoice') {
+          initialMessage = `🔍 Looking up invoice #${action.invoiceId}...`;
+        } else if (action.action === 'list_invoices') {
+          initialMessage = `📋 Loading invoice list...`;
+        } else if (action.action === 'create_invoice') {
+          initialMessage = `➕ Opening invoice creation form...`;
+        } else {
+          initialMessage = `Navigating to ${action.description}...`;
+        }
+        addMessage('assistant', initialMessage);
+
+        console.log('⏰ About to call executeNavigation...');
         const navResult = await executeNavigation(action);
+        console.log('📋 Navigation result received:', navResult);
+        console.log('🔍 Navigation result details:', JSON.stringify(navResult, null, 2));
+
         if (navResult && navResult.success) {
-          addMessage('assistant', navResult.message || `Successfully navigated to ${action.description}.`);
+          console.log('✅ Navigation succeeded, showing success message');
+          // Provide more specific success message based on action type
+          let successMessage;
+          if (action.action === 'view_invoice') {
+            successMessage = `✅ Opening invoice #${action.invoiceId}...`;
+          } else {
+            successMessage = navResult.message || `✅ Successfully navigated to ${action.description}.`;
+          }
+          addMessage('assistant', successMessage);
         } else if (navResult && navResult.success === false) {
-          addMessage('system', navResult.message || navResult.error || 'Navigation failed.');
+          console.log('❌ Navigation failed, showing error message');
+          // Provide more specific error message based on action type
+          let errorMessage;
+          if (action.action === 'view_invoice') {
+            errorMessage = `❌ Could not open invoice #${action.invoiceId}. The invoice might not exist or there was a navigation error.`;
+          } else {
+            errorMessage = navResult.message || navResult.error || 'Navigation failed.';
+          }
+          addMessage('system', errorMessage);
         } else {
           // Handle case where navResult is undefined or doesn't have expected structure
-          addMessage('assistant', `Navigated to ${action.description}.`);
+          console.log('⚠️ Navigation result undefined or unexpected structure, showing fallback message');
+          let fallbackMessage;
+          if (action.action === 'view_invoice') {
+            fallbackMessage = `📄 Attempting to open invoice #${action.invoiceId}...`;
+          } else {
+            fallbackMessage = `Navigated to ${action.description}.`;
+          }
+          addMessage('assistant', fallbackMessage);
         }
       } else if (action.type === 'conversation') {
         console.log('💬 Conversation action detected:', action);
@@ -1459,17 +1499,28 @@ Action:`;
   const executeNavigation = async (action) => {
     console.log('🧭 === NAVIGATION EXECUTION PHASE ===');
     console.log('🎯 Executing navigation for action:', action);
+    console.log('🔍 Action breakdown - type:', action.type, 'action:', action.action, 'invoiceId:', action.invoiceId, 'route:', action.route);
 
     try {
       let result;
 
       console.log('🔄 Determining navigation method for action type:', action.action);
+      console.log('🧭 Available llmNav methods:', Object.keys(llmNav));
+      console.log('🧭 Available invoice methods:', llmNav.invoice ? Object.keys(llmNav.invoice) : 'invoice not available');
 
       // Use specialized navigation methods based on action type
       switch (action.action) {
         case 'view_invoice':
-          console.log('👁️ Using llmNav.invoice.viewInvoice with ID:', action.invoiceId);
+          console.log('👁️ === VIEW INVOICE NAVIGATION ===');
+          console.log('📋 Invoice ID to navigate to:', action.invoiceId);
+          console.log('📋 Invoice ID type:', typeof action.invoiceId);
+          console.log('🔍 Calling llmNav.invoice.viewInvoice...');
+
           result = llmNav.invoice.viewInvoice(action.invoiceId);
+
+          console.log('📍 viewInvoice call completed, result:', result);
+          console.log('🔍 Result type:', typeof result);
+          console.log('🔍 Result success property:', result?.success);
           break;
         case 'list_invoices':
           console.log('📋 Using llmNav.invoice.listInvoices');
@@ -1522,13 +1573,35 @@ Action:`;
       }
 
       console.log('📍 Navigation method result:', result);
+      console.log('🔍 Checking result properties...');
+      console.log('🔍 result:', result);
+      console.log('🔍 result.success:', result?.success);
+      console.log('🔍 result.error:', result?.error);
 
-      if (result && result.success) {
+      if (result && result.success === true) {
         console.log('✅ Navigation successful, updating UI...');
+        // Add a small delay to ensure navigation completes
+        setTimeout(() => {
+          console.log('🔍 Current location after navigation:', window.location.pathname);
+        }, 100);
         return { success: true, message: `Successfully navigated to ${action.description}.` };
-      } else {
+      } else if (result && result.success === false) {
         console.log('❌ Navigation failed with error:', result?.error);
         return { success: false, message: result?.error || 'Navigation failed.' };
+      } else {
+        console.log('⚠️ Navigation result is unclear, treating as success...');
+        // Sometimes navigation can succeed but not return clear success indicator
+        // Add a delay to check if navigation actually occurred
+        setTimeout(() => {
+          console.log('🔍 Current location after unclear result:', window.location.pathname);
+          console.log('🔍 Expected route was:', action.route);
+          if (window.location.pathname === action.route) {
+            console.log('✅ Navigation actually succeeded despite unclear result');
+          } else {
+            console.log('❌ Navigation did not occur as expected');
+          }
+        }, 100);
+        return { success: true, message: `Navigated to ${action.description}.` };
       }
     } catch (error) {
       console.error('🚨 Navigation execution error:', error);
@@ -1597,6 +1670,29 @@ Action:`;
 
             // Add entities to discussion history
             addDiscussedEntity('product', productResult.extractedData);
+          } else if (productResult.success && productResult.action === 'product_created') {
+            // Product was created successfully
+            console.log('✅ Product created successfully in conversational flow');
+            addMessage('assistant', '🎉 Product created successfully! You can now use it in invoices.');
+          } else if (!productResult.success) {
+            // Handle failures - provide fallback option
+            console.log('❌ Conversational product creation failed:', productResult.reason);
+
+            if (productResult.needsRetry) {
+              addMessage('assistant', `${productResult.message} Please try again with the missing information.`);
+            } else {
+              addMessage('assistant', 'I had trouble processing your product creation request.');
+              addMessage('assistant', '🔗 Let me take you to the product creation page where you can enter the details manually.');
+
+              // Fallback to navigation with any extracted data
+              setTimeout(() => {
+                const navResult = llmNav.entities.createProduct(productResult.extractedData || {});
+                if (!navResult.success) {
+                  console.log('❌ Fallback navigation also failed');
+                  addMessage('system', 'Navigation to product creation page failed. Please navigate manually.');
+                }
+              }, 1000);
+            }
           }
           break;
 
