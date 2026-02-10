@@ -2,10 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { pipeline, env } from '@xenova/transformers';
 import useLLMNavigation from '../hooks/useLLMNavigation';
+import InvoiceClassifier from '../services/InvoiceClassifier';
+import EntityExtractor from '../services/EntityExtractor';
 import './LLMAssistant.css';
 
 // Configure transformers environment for browser compatibility
-env.allowLocalModels = false;  // Force remote model loading from CDN
+env.allowLocalModels = true;   // Allow local model loading from /public/models/
 env.allowRemoteModels = true;  // Allow downloading from Hugging Face
 env.useBrowserCache = false;   // Disable cache to avoid stale 404 responses
 
@@ -15,6 +17,8 @@ const LLMAssistant = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [llmGenerator, setLlmGenerator] = useState(null);
+  const [invoiceClassifier, setInvoiceClassifier] = useState(null);
+  const [entityExtractor, setEntityExtractor] = useState(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const chatContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -42,94 +46,76 @@ const LLMAssistant = () => {
   }, []);
 
   const initializeLLM = useCallback(async () => {
-    addMessage('system', 'Starting model download...');
-    console.log('🔄 Initializing LLM model...');
-    
-    // Check SharedArrayBuffer availability first
-    if (typeof SharedArrayBuffer === 'undefined') {
-      console.error('❌ SharedArrayBuffer is not available. COEP/COOP headers may be missing.');
-      addMessage('system', '❌ SharedArrayBuffer not available. Browser security requirements not met.');
-      setIsModelLoading(false);
-      setLlmGenerator(null);
-      return;
-    } else {
-      console.log('✅ SharedArrayBuffer is available');
-    }
-    
-    // Store original fetch outside try block
-    const originalFetch = window.fetch;
-    
-    try {
-      console.log('📥 Beginning pipeline creation for text-generation');
-      console.log('🎯 Model: Xenova/distilgpt2 (verified available on HuggingFace)');
-      console.log('⚙️ Configuration: quantized=true for faster loading');
-      
-      // Add network error logging by wrapping fetch
-      window.fetch = async (url, options) => {
-        console.log('🌐 Fetch request:', url);
-        try {
-          const response = await originalFetch(url, options);
-          console.log('📡 Fetch response:', response.status, response.statusText, 'for', url);
-          
-          if (!response.ok) {
-            console.error('❌ Fetch failed:', response.status, response.statusText, 'for', url);
-            
-            // Check if we're getting HTML instead of expected content
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('text/html')) {
-              console.error('🔍 Received HTML response (likely 404 page) instead of model file');
-              const htmlPreview = await response.clone().text();
-              console.error('📄 HTML content preview:', htmlPreview.substring(0, 300));
-            }
-          }
-          
-          return response;
-        } catch (fetchError) {
-          console.error('🚨 Fetch error for', url, ':', fetchError);
-          throw fetchError;
-        }
-      };
-      
-      // Load the model with proper configuration
-      const generator = await pipeline('text-generation', 'Xenova/distilgpt2', {
-        quantized: true,
-        progress_callback: (data) => {
-          console.log('📊 Download progress:', data);
-          
-          if (data.status === 'progress') {
-            const percent = Math.round(data.progress * 100);
-            const size = data.total ? `${(data.total / 1024 / 1024).toFixed(1)}MB` : '';
-            addMessage('system', `📈 Loading ${data.file}: ${percent}% ${size}`);
-          } else if (data.status === 'done') {
-            addMessage('system', `✅ Completed: ${data.file}`);
-          }
-        }
-      });
-      
-      // Restore original fetch
-      window.fetch = originalFetch;
-      
-      console.log('✅ DistilGPT-2 loaded successfully');
-      setLlmGenerator(() => generator);  // Use function form to prevent React from processing generator
-      setIsModelLoading(false);
-      addMessage('system', '✅ DistilGPT-2 loaded! Ready to help with API calls.');
-    } catch (error) {
-      // Restore original fetch in case of error  
-      window.fetch = originalFetch;
-      
-      console.error('🚨 Model loading failed:', error);
-      
-      if (error.message && error.message.includes('Unexpected token')) {
-        console.error('🔍 JSON parsing error - received HTML instead of model files');
-        addMessage('system', '❌ Model files returned HTML (404). Check console for URLs.');
-      } else {
-        console.error('🔍 Error:', error.message);
-        addMessage('system', `❌ Model loading failed: ${error.message}`);
+    console.log('🔄 Initializing Invoice Classification Models...');
+
+    // Initialize fine-tuned invoice classifier
+    const classifier = new InvoiceClassifier();
+    setInvoiceClassifier(classifier);
+
+    // Initialize entity extractor
+    const extractor = new EntityExtractor();
+    setEntityExtractor(extractor);
+    console.log('✅ EntityExtractor initialized');
+
+    const progressCallback = (data) => {
+      if (data.status === 'loading') {
+        addMessage('system', '🤖 Loading fine-tuned invoice classifier...');
+      } else if (data.status === 'progress') {
+        const percent = Math.round((data.progress || 0) * 100);
+        addMessage('system', `📈 ${data.message} (${percent}%)`);
+      } else if (data.status === 'done') {
+        addMessage('system', data.message);
+      } else if (data.status === 'complete') {
+        addMessage('system', '✅ Fine-tuned classifier ready! High accuracy for invoice commands.');
+        setIsModelLoading(false);
+      } else if (data.status === 'error') {
+        addMessage('system', data.message);
       }
-      
+    };
+
+    try {
+      const result = await classifier.initialize(progressCallback);
+
+      if (result.success) {
+        console.log('✅ Fine-tuned invoice classifier initialized successfully');
+
+        // Also try to initialize the fallback DistilGPT-2 model
+        try {
+          console.log('🔄 Loading fallback DistilGPT-2 model...');
+          addMessage('system', '📥 Loading fallback model for complex queries...');
+
+          const generator = await pipeline('text-generation', 'Xenova/distilgpt2', {
+            quantized: true,
+            progress_callback: (data) => {
+              if (data.status === 'progress') {
+                const percent = Math.round(data.progress * 100);
+                console.log(`📊 Fallback model progress: ${percent}%`);
+              } else if (data.status === 'done') {
+                console.log('✅ Fallback model file loaded:', data.file);
+              }
+            }
+          });
+
+          setLlmGenerator(() => generator);
+          addMessage('system', '🔄 Fallback model ready for complex queries.');
+
+        } catch (fallbackError) {
+          console.log('⚠️ Fallback model failed to load:', fallbackError.message);
+          addMessage('system', '⚠️ Fallback model unavailable. Using pattern matching for complex queries.');
+        }
+
+      } else {
+        console.error('❌ Fine-tuned classifier failed to load:', result.message);
+        addMessage('system', `❌ Fine-tuned model failed: ${result.message}`);
+        addMessage('system', '🔄 Falling back to pattern matching.');
+        setIsModelLoading(false);
+      }
+
+    } catch (error) {
+      console.error('🚨 Classifier initialization error:', error);
+      addMessage('system', `❌ Classifier initialization failed: ${error.message}`);
+      addMessage('system', '🔄 Using pattern matching only.');
       setIsModelLoading(false);
-      addMessage('system', 'Falling back to pattern matching for navigation.');
-      setLlmGenerator(null);
     }
   }, [addMessage]);
 
@@ -161,14 +147,33 @@ const LLMAssistant = () => {
         detectedAction: apiAction.description,
         method: apiAction.method || apiAction.type,
         endpoint: apiAction.route || apiAction.endpoint,
-        requestBody: apiAction.body || 'none'
+        requestBody: apiAction.body || 'none',
+        source: apiAction.source || 'unknown',
+        confidence: apiAction.confidence || 'N/A'
       });
 
-      addMessage('assistant', `I'll help you ${apiAction.description}`);
+      // Show processing method to user
+      const sourceEmoji = {
+        'fine-tuned-classifier': '🎯',
+        'fallback-llm': '🧠',
+        'pattern-matching': '🔧'
+      };
+
+      const confidenceText = apiAction.confidence
+        ? ` (confidence: ${(apiAction.confidence * 100).toFixed(1)}%)`
+        : '';
+
+      const sourceText = apiAction.source
+        ? ` ${sourceEmoji[apiAction.source] || ''}`
+        : '';
+
+      addMessage('assistant', `I'll help you ${apiAction.description}${sourceText}${confidenceText}`);
 
       // Execute the appropriate action
       if (apiAction.type === 'navigation') {
         await executeNavigation(apiAction);
+      } else if (apiAction.type === 'entity_creation') {
+        await executeEntityCreation(apiAction);
       } else if (apiAction.type === 'api_call') {
         await executeAPIAction(apiAction);
       } else {
@@ -188,28 +193,100 @@ const LLMAssistant = () => {
     console.log('🚀 === STARTING QUERY PROCESSING ===');
     console.log('📝 Original query:', query);
     console.log('🔍 Normalized query:', lowerQuery);
-    console.log('🤖 LLM Generator available:', !!llmGenerator);
-    
-    // Use LLM if available, otherwise fall back to pattern matching
+    console.log('🤖 Fine-tuned classifier available:', !!invoiceClassifier?.isLoaded);
+    console.log('🤖 Fallback LLM available:', !!llmGenerator);
+
+    // Try fine-tuned classifier first (highest priority)
+    if (invoiceClassifier && invoiceClassifier.isLoaded) {
+      try {
+        console.log('🎯 Attempting fine-tuned classification...');
+        const classificationResult = await invoiceClassifier.classifyCommand(query);
+
+        console.log('🎯 Classification result:', {
+          action: classificationResult.action,
+          confidence: classificationResult.confidence,
+          isHighConfidence: classificationResult.isHighConfidence
+        });
+
+        // Use classification if confidence is good or if it's high confidence
+        if (classificationResult.isHighConfidence || !classificationResult.fallbackToPattern) {
+          console.log('✅ Using fine-tuned classification result');
+
+          // Check if this is an entity creation action that requires data extraction
+          const entityCreationActions = ['create_product_with_data', 'create_customer_with_data', 'create_invoice_with_data'];
+
+          if (entityCreationActions.includes(classificationResult.action) && entityExtractor) {
+            console.log('🔍 Entity creation action detected, extracting data...');
+
+            try {
+              const extractedData = entityExtractor.extract(query, classificationResult.action);
+              console.log('✅ Entity extraction successful:', extractedData);
+
+              return {
+                type: classificationResult.type,
+                action: classificationResult.action,
+                route: classificationResult.route,
+                endpoint: classificationResult.endpoint,
+                description: classificationResult.description,
+                invoiceId: classificationResult.extractedId,
+                confidence: classificationResult.confidence,
+                source: 'fine-tuned-classifier',
+                extractedData: extractedData,
+                requiresExtraction: true
+              };
+            } catch (extractionError) {
+              console.error('❌ Entity extraction failed:', extractionError);
+              // Fall back to regular navigation without pre-fill
+              return {
+                type: classificationResult.type,
+                action: classificationResult.action,
+                route: classificationResult.route,
+                endpoint: classificationResult.endpoint,
+                description: classificationResult.description,
+                invoiceId: classificationResult.extractedId,
+                confidence: classificationResult.confidence,
+                source: 'fine-tuned-classifier',
+                extractionError: extractionError.message
+              };
+            }
+          } else {
+            // Regular action without entity extraction
+            return {
+              type: classificationResult.type,
+              action: classificationResult.action,
+              route: classificationResult.route,
+              endpoint: classificationResult.endpoint,
+              description: classificationResult.description,
+              invoiceId: classificationResult.extractedId,
+              confidence: classificationResult.confidence,
+              source: 'fine-tuned-classifier'
+            };
+          }
+        } else {
+          console.log('⚠️ Low confidence from classifier, trying fallbacks...');
+        }
+      } catch (error) {
+        console.log('⚠️ Fine-tuned classification failed:', error.message);
+      }
+    }
+
+    // Try original LLM approach if available
     if (llmGenerator) {
       try {
-        console.log('🧠 Attempting LLM processing...');
+        console.log('🧠 Attempting fallback LLM processing...');
         const result = await generateFromLLM(query);
-        console.log('✅ LLM processing successful:', result);
-        return result;
+        console.log('✅ Fallback LLM processing successful:', result);
+        return { ...result, source: 'fallback-llm' };
       } catch (error) {
-        console.log('⚠️ LLM processing failed:', error.message);
-        console.log('🔄 Falling back to pattern matching...');
+        console.log('⚠️ Fallback LLM processing failed:', error.message);
       }
-    } else {
-      console.log('🤖 LLM not available, using pattern matching');
     }
-    
-    // Fallback to pattern matching for REST API
-    console.log('🔧 Executing pattern matching analysis...');
-    const patternResult = generateRESTFromPattern(lowerQuery);
+
+    // Final fallback to pattern matching
+    console.log('🔧 Using pattern matching as final fallback...');
+    const patternResult = generateRESTFromPattern(lowerQuery, entityExtractor);
     console.log('📊 Pattern matching result:', patternResult);
-    return patternResult;
+    return { ...patternResult, source: 'pattern-matching' };
   };
 
   const generateFromLLM = async (query) => {
@@ -411,7 +488,7 @@ Action:`;
     throw new Error('Could not map LLM action to specific operation');
   };
 
-  const generateRESTFromPattern = (query) => {
+  const generateRESTFromPattern = (query, entityExtractor = null) => {
     // Invoice-specific pattern matching
     
     // Single invoice viewing
@@ -508,8 +585,90 @@ Action:`;
       };
     }
 
-    // Customer search
-    const customerMatch = query.match(/(?:invoices?\s+for|customer)\s+([a-zA-Z\s]+)/);
+    // ENTITY CREATION PATTERNS (PRIORITY: Check these FIRST before general patterns)
+    // Create customer patterns
+    if (query.match(/(?:create|add|register)\s+(?:a\s+)?(?:new\s+)?customer/i)) {
+      const baseAction = {
+        type: 'entity_creation',
+        action: 'create_customer_with_data',
+        route: '/customer',
+        description: 'create customer with extracted data'
+      };
+
+      // Try to extract customer data if entityExtractor is available
+      if (entityExtractor) {
+        try {
+          console.log('🔍 Extracting customer data from pattern matching...');
+          const extractedData = entityExtractor.extract(query, 'create_customer_with_data');
+          console.log('✅ Customer data extracted:', extractedData);
+          return {
+            ...baseAction,
+            extractedData
+          };
+        } catch (error) {
+          console.warn('⚠️ Customer data extraction failed:', error.message);
+        }
+      }
+
+      return baseAction;
+    }
+
+    // Create product patterns
+    if (query.match(/(?:create|add|make)\s+(?:a\s+)?(?:new\s+)?product/i)) {
+      const baseAction = {
+        type: 'entity_creation',
+        action: 'create_product_with_data',
+        route: '/product',
+        description: 'create product with extracted data'
+      };
+
+      // Try to extract product data if entityExtractor is available
+      if (entityExtractor) {
+        try {
+          console.log('🔍 Extracting product data from pattern matching...');
+          const extractedData = entityExtractor.extract(query, 'create_product_with_data');
+          console.log('✅ Product data extracted:', extractedData);
+          return {
+            ...baseAction,
+            extractedData
+          };
+        } catch (error) {
+          console.warn('⚠️ Product data extraction failed:', error.message);
+        }
+      }
+
+      return baseAction;
+    }
+
+    // Create invoice patterns
+    if (query.match(/(?:create|make|generate)\s+(?:a\s+)?(?:new\s+)?invoice/i)) {
+      const baseAction = {
+        type: 'entity_creation',
+        action: 'create_invoice_with_data',
+        route: '/invoice',
+        description: 'create invoice with extracted data'
+      };
+
+      // Try to extract invoice data if entityExtractor is available
+      if (entityExtractor) {
+        try {
+          console.log('🔍 Extracting invoice data from pattern matching...');
+          const extractedData = entityExtractor.extract(query, 'create_invoice_with_data');
+          console.log('✅ Invoice data extracted:', extractedData);
+          return {
+            ...baseAction,
+            extractedData
+          };
+        } catch (error) {
+          console.warn('⚠️ Invoice data extraction failed:', error.message);
+        }
+      }
+
+      return baseAction;
+    }
+
+    // Customer search (now safe from create commands)
+    const customerMatch = query.match(/(?:invoices?\s+for|show.*customer)\s+([a-zA-Z\s]+)/);
     if (customerMatch) {
       return {
         type: 'api_call',
@@ -591,6 +750,66 @@ Action:`;
     } catch (error) {
       console.error('🚨 Navigation execution error:', error);
       addMessage('system', '❌ Navigation failed. Please try again.');
+    }
+  };
+
+  const executeEntityCreation = async (action) => {
+    console.log('🎯 === ENTITY CREATION EXECUTION PHASE ===');
+    console.log('✨ Executing entity creation for action:', action);
+
+    try {
+      if (!action.extractedData) {
+        console.warn('⚠️ No extracted data available, falling back to regular navigation');
+        return executeNavigation(action);
+      }
+
+      const { extractedData } = action;
+
+      // Show extracted data to user
+      if (extractedData.summary) {
+        addMessage('assistant', `📋 Extracted: ${extractedData.summary}`);
+      }
+
+      // Show validation results
+      if (extractedData.validation) {
+        if (extractedData.validation.errors.length > 0) {
+          addMessage('assistant', `⚠️ Issues found: ${extractedData.validation.errors.join(', ')}`);
+        }
+        if (extractedData.validation.warnings.length > 0) {
+          addMessage('assistant', `💡 Notes: ${extractedData.validation.warnings.join(', ')}`);
+        }
+      }
+
+      // Navigate to the appropriate form with pre-filled data
+      console.log('🚀 Navigating with extracted data to:', action.route);
+
+      navigate(action.route, {
+        state: {
+          action: action.action,
+          extractedData: extractedData,
+          originalQuery: extractedData.original_text,
+          confidence: extractedData.confidence
+        }
+      });
+
+      // Provide user feedback
+      const entityType = extractedData.type || 'entity';
+      addMessage('system', `✅ Opening smart ${entityType} creation form with your data...`);
+
+      console.log('✅ Entity creation navigation successful');
+
+    } catch (error) {
+      console.error('🚨 Entity creation execution error:', error);
+      addMessage('system', '❌ Failed to open form with extracted data. Falling back to regular form.');
+
+      // Fallback to regular navigation
+      try {
+        navigate(action.route);
+        addMessage('system', '✅ Opened regular form instead.');
+      } catch (fallbackError) {
+        console.error('🚨 Fallback navigation also failed:', fallbackError);
+        addMessage('system', '❌ Navigation failed completely. Please try manually.');
+      }
     }
   };
 

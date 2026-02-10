@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const CustomerPage = () => {
+  const location = useLocation();
   const [customers, setCustomers] = useState([]);
   const [showList, setShowList] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,11 +30,30 @@ const CustomerPage = () => {
   
 
 
-    useEffect(() => {
-      if (showList) {
-        fetchCustomers();
-      }
-    }, [showList]);
+  useEffect(() => {
+    if (showList) {
+      fetchCustomers();
+    }
+  }, [showList]);
+
+  // Handle extracted data from AI assistant - auto-fill form
+  useEffect(() => {
+    if (location.state?.extractedData && location.state?.action === 'create_customer_with_data') {
+      console.log('🎯 Customer creation with extracted data:', location.state.extractedData);
+      const extractedData = location.state.extractedData;
+
+      // Auto-fill form with extracted data
+      const newFormData = {
+        customer_name: extractedData.customer_name || '',
+        customer_address: extractedData.customer_address || '',
+        customer_phone: extractedData.customer_phone || '',
+        customer_email: extractedData.customer_email || '',
+      };
+
+      console.log('✅ Auto-filling customer form with extracted data:', newFormData);
+      setFormData(newFormData);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
         e.preventDefault();
@@ -92,10 +113,11 @@ const CustomerPage = () => {
       if (!showList) setShowList(true);
     };
 
-    const resetForm = () => {
-      setFormData({ customer_name: '', customer_address: '', customer_phone: '', customer_email: '' });
-      setEditingId(null);
-    };
+  const resetForm = () => {
+    setFormData({ customer_name: '', customer_address: '', customer_phone: '', customer_email: '' });
+    setEditingId(null);
+  };
+
 
   return (
     <div className="container">
@@ -191,6 +213,7 @@ const CustomerPage = () => {
           </div>
         </section>
       )}
+
     </div>
   );
 };

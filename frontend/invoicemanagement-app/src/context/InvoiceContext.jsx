@@ -17,7 +17,7 @@ const initialState = {
     line_items: [{
       product_id: null,
       product_description: '',
-      line_items_qty: 1,
+      lineitem_qty: 1,
       product_price: 0,
       line_items_total: 0
     }]
@@ -140,7 +140,7 @@ const invoiceReducer = (state, action) => {
             {
               product_id: null,
               product_description: '',
-              line_items_qty: 1,
+              lineitem_qty: 1,
               product_price: 0,
               line_items_total: 0
             }
@@ -158,8 +158,8 @@ const invoiceReducer = (state, action) => {
       };
       
       // Recalculate line item total if qty or price changed
-      if (field === 'line_items_qty' || field === 'product_price') {
-        const qty = field === 'line_items_qty' ? value : updatedLineItems[index].line_items_qty;
+      if (field === 'lineitem_qty' || field === 'product_price') {
+        const qty = field === 'lineitem_qty' ? value : updatedLineItems[index].lineitem_qty;
         const price = field === 'product_price' ? value : updatedLineItems[index].product_price;
         updatedLineItems[index].line_items_total = (qty || 0) * (price || 0);
       }
@@ -315,10 +315,10 @@ export const InvoiceProvider = ({ children }) => {
         line_items: invoice.items?.map(item => ({
           product_id: item.product_id || null,
           product_description: item.product_description || item.line_items_description || '',
-          line_items_qty: item.line_items_qty || 1,
+          lineitem_qty: item.lineitem_qty || item.line_items_qty || 1,
           product_price: item.product_price || item.line_items_price || 0,
-          line_items_total: (item.line_items_qty || 1) * (item.product_price || item.line_items_price || 0),
-        })) || [{ product_id: null, product_description: '', line_items_qty: 1, product_price: 0, line_items_total: 0 }]
+          line_items_total: (item.lineitem_qty || item.line_items_qty || 1) * (item.product_price || item.line_items_price || 0),
+        })) || [{ product_id: null, product_description: '', lineitem_qty: 1, product_price: 0, line_items_total: 0 }]
       };
       
       setCurrentInvoice(transformedInvoice);
@@ -398,7 +398,7 @@ export const InvoiceProvider = ({ children }) => {
     
     // Validate line items
     invoiceData.line_items.forEach((item, index) => {
-      if (item.line_items_qty <= 0) {
+      if (item.lineitem_qty <= 0) {
         errors[`item_qty_${index}`] = 'Quantity must be greater than 0.';
       }
       if (!item.product_description) {

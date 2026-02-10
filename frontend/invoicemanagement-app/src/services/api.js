@@ -157,34 +157,54 @@ class InvoiceApiService extends ApiService {
 export const invoiceApi = new InvoiceApiService();
 
 // Enhanced customer service
-export const customerApi = {
-  ...customerService,
-  
+class CustomerApiService extends ApiService {
+  constructor() {
+    super('/customers'); // For GET operations (plural)
+  }
+
+  // Override create method to use singular endpoint
+  async create(data) {
+    const response = await apiClient.post('/customer', data); // Singular for POST
+    return response.data;
+  }
+
   // Search customers by name or email
   async search(query) {
     return this.get('', { search: query });
-  },
-  
+  }
+
   // Get customer invoices
   async getInvoices(customerId) {
     return this.get(`/${customerId}/invoices`);
   }
-};
+}
+
+export const customerApi = new CustomerApiService();
 
 // Enhanced product service
-export const productApi = {
-  ...productService,
-  
+class ProductApiService extends ApiService {
+  constructor() {
+    super('/products'); // For GET operations (plural)
+  }
+
+  // Override create method to use singular endpoint
+  async create(data) {
+    const response = await apiClient.post('/product', data); // Singular for POST
+    return response.data;
+  }
+
   // Search products by description
   async search(query) {
     return this.get('', { search: query });
-  },
-  
+  }
+
   // Get product usage analytics
   async getUsage(productId) {
     return this.get(`/${productId}/usage`);
   }
-};
+}
+
+export const productApi = new ProductApiService();
 
 // Enhanced report service
 class ReportApiService extends ApiService {

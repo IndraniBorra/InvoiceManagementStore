@@ -11,6 +11,12 @@ const SingleInvoicePage = () => {
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState(null);
 
+  // Debug logging for navigation verification
+  console.log('📋 === SingleInvoicePage component loaded ===');
+  console.log('📋 Route parameter ID:', id);
+  console.log('📋 ID type:', typeof id);
+  console.log('📋 Current URL:', window.location.pathname);
+
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadPDF = () => {
@@ -132,7 +138,7 @@ const SingleInvoicePage = () => {
   }
 
   const calculateSubtotal = () =>
-    invoice.line_items.reduce((sum, item) => sum + item.lineitem_total, 0).toFixed(2);
+    (invoice.line_items || []).reduce((sum, item) => sum + (item.lineitem_total || 0), 0).toFixed(2);
 
   // Get status-specific styling
   const getStatusClass = (status) => {
@@ -228,9 +234,9 @@ const SingleInvoicePage = () => {
 
           {/* Recipient Information */}
           <div className="recipient-section">
-            <h3 className="recipient-name">{invoice.customer_name}</h3>
-            <p className="recipient-address">{invoice.customer_address}</p>
-            <p className="recipient-phone">{invoice.customer_phone}</p>
+            <h3 className="recipient-name">{invoice.customer?.customer_name || invoice.customer_name || 'N/A'}</h3>
+            <p className="recipient-address">{invoice.customer?.customer_address || invoice.customer_address || 'N/A'}</p>
+            <p className="recipient-phone">{invoice.customer?.customer_phone || invoice.customer_phone || 'N/A'}</p>
           </div>
 
           {/* Invoice Table */}
@@ -246,15 +252,19 @@ const SingleInvoicePage = () => {
                 </tr>
               </thead>
               <tbody>
-                {invoice.line_items.map((item, index) => (
+                {invoice.line_items?.map((item, index) => (
                   <tr key={index}>
                     <td>{index + 1}</td>
-                    <td>{item.product_description}</td>
-                    <td>{item.lineitem_qty} pcs</td>
-                    <td>{item.product_price}</td>
-                    <td>{item.lineitem_total}</td>
+                    <td>{item.product?.product_description || item.product_description || `Product #${item.product_id || 'N/A'}`}</td>
+                    <td>{item.lineitem_qty || 0} pcs</td>
+                    <td>${item.product?.product_price || item.product_price || 0}</td>
+                    <td>${item.lineitem_total || 0}</td>
                   </tr>
-                ))}
+                )) || (
+                  <tr>
+                    <td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No line items available</td>
+                  </tr>
+                )}
               </tbody>
             </table>
 

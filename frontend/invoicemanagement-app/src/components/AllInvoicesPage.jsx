@@ -45,18 +45,18 @@ const AllInvoicesPage = () => {
           {invoices.map((invoice) => (
             <tr key={invoice.id}>
               <td>{invoice.id}</td>
-              <td>{invoice.customer.customer_name}</td>
-              <td>{invoice.customer.customer_phone}</td>
-              <td>{invoice.customer.customer_address}</td>
+              <td>{invoice.customer?.customer_name || 'N/A'}</td>
+              <td>{invoice.customer?.customer_phone || 'N/A'}</td>
+              <td>{invoice.customer?.customer_address || 'N/A'}</td>
               <td>{invoice.date_issued}</td>
               <td>${invoice.invoice_total}</td>
               <td>
                 <ul>
-                  {invoice.line_items.map((item, idx) => (
+                  {invoice.line_items?.map((item, idx) => (
                     <li key={idx}>
-                      {item.product_id}: ${item.lineitem_total}
+                      {item.product?.product_description || `Product #${item.product_id}`}: ${item.lineitem_total}
                     </li>
-                  ))}
+                  )) || <li>No items</li>}
                 </ul>
               </td>
               <td>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../services/api'; // Modern API client
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import CustomerSearch from './ui/search/CustomerSearch';
@@ -9,6 +9,7 @@ import ProductSearch from './ui/search/ProductSearch';
 
 const InvoicePage = () => {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
@@ -128,6 +129,51 @@ const InvoicePage = () => {
       fetchInvoiceToEdit();
     }
   }, [id]);
+
+  // Handle AI extracted invoice data - auto-fill form
+  useEffect(() => {
+    if (location.state?.extractedData && location.state?.action === 'create_invoice_with_data') {
+      console.log('🎯 Invoice creation with extracted data:', location.state.extractedData);
+      const extractedData = location.state.extractedData;
+
+      // Auto-fill customer information if available
+      let newFormData = { ...formData };
+
+      if (extractedData.customer_info?.customer_name) {
+        newFormData.customer_name = extractedData.customer_info.customer_name;
+        console.log('✅ Auto-filled customer name:', extractedData.customer_info.customer_name);
+      }
+
+      // Auto-fill line items if available
+      if (extractedData.line_items && extractedData.line_items.length > 0) {
+        newFormData.line_items = extractedData.line_items.map(item => ({
+          product_id: null,
+          product_description: item.product_description || '',
+          line_items_qty: item.line_items_qty || 1,
+          product_price: item.product_price || 0,
+          line_items_total: (item.line_items_qty || 1) * (item.product_price || 0)
+        }));
+
+        // Calculate total
+        const total = newFormData.line_items.reduce(
+          (sum, item) => sum + (item.line_items_qty * item.product_price), 0
+        );
+        newFormData.invoice_total = total;
+
+        console.log('✅ Auto-filled line items:', newFormData.line_items);
+      }
+
+      // Set default date to today if not set
+      if (!newFormData.date_issued) {
+        const today = new Date().toISOString().split('T')[0];
+        newFormData.date_issued = today;
+        newFormData.invoice_due_date = calculateDueDate(today, newFormData.invoice_terms);
+      }
+
+      console.log('✅ Auto-filling invoice form with extracted data:', newFormData);
+      setFormData(newFormData);
+    }
+  }, [location.state]);
 
   // Handle form item changes
   const handleItemChange = (index, field, value) => {

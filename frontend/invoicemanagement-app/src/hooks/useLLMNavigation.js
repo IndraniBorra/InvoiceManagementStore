@@ -14,6 +14,12 @@ export const useLLMNavigation = () => {
    * Navigate to a route and track the navigation
    */
   const navigateToRoute = useCallback((route, state = {}, options = {}) => {
+    console.log('🚀 === navigateToRoute called ===');
+    console.log('📍 From:', location.pathname);
+    console.log('📍 To:', route);
+    console.log('📍 State:', state);
+    console.log('📍 Options:', options);
+
     try {
       const navigationEntry = {
         id: Date.now(),
@@ -24,16 +30,25 @@ export const useLLMNavigation = () => {
         source: 'llm'
       };
 
+      console.log('📋 Navigation entry created:', navigationEntry);
+
       // Add to navigation history
       setNavigationHistory(prev => [...prev.slice(-9), navigationEntry]);
+      console.log('📚 Navigation history updated');
 
       // Perform navigation
+      console.log('🚢 Calling React Router navigate...');
       navigate(route, { state, ...options });
+      console.log('✅ React Router navigate call completed');
 
-      return { success: true, entry: navigationEntry };
+      const result = { success: true, entry: navigationEntry };
+      console.log('📍 navigateToRoute returning success:', result);
+      return result;
     } catch (error) {
-      console.error('Navigation error:', error);
-      return { success: false, error: error.message };
+      console.error('❌ Navigation error:', error);
+      const result = { success: false, error: error.message };
+      console.log('📍 navigateToRoute returning error:', result);
+      return result;
     }
   }, [navigate, location.pathname]);
 
@@ -56,10 +71,23 @@ export const useLLMNavigation = () => {
   const invoiceNavigation = {
     // View single invoice
     viewInvoice: useCallback((invoiceId) => {
-      return navigateToRoute(`/invoice/${invoiceId}`, {
+      console.log('🎯 === useLLMNavigation.viewInvoice called ===');
+      console.log('📋 Received invoiceId:', invoiceId);
+      console.log('📋 InvoiceId type:', typeof invoiceId);
+
+      const parsedId = parseInt(invoiceId);
+      console.log('📋 Parsed invoice ID:', parsedId);
+      const targetRoute = `/invoice/${invoiceId}`;
+      console.log('📋 Target route:', targetRoute);
+
+      console.log('🚀 Calling navigateToRoute...');
+      const result = navigateToRoute(targetRoute, {
         action: 'view',
-        invoiceId: parseInt(invoiceId)
+        invoiceId: parsedId
       });
+
+      console.log('📍 navigateToRoute returned:', result);
+      return result;
     }, [navigateToRoute]),
 
     // List all invoices
@@ -71,10 +99,25 @@ export const useLLMNavigation = () => {
 
     // Create new invoice
     createInvoice: useCallback((preData = {}) => {
-      return navigateWithData('/invoice', { 
-        prefill: preData,
-        action: 'create'
-      });
+      console.log('🚀 Creating invoice with prefill data:', preData);
+
+      // Handle both old format (prefill) and new format (direct data)
+      const navigationData = {
+        action: 'create',
+        ...(preData.entities ? {
+          // New AI-extracted format
+          llmData: preData,
+          aiGenerated: true,
+          timestamp: Date.now()
+        } : {
+          // Legacy format
+          prefill: preData
+        })
+      };
+
+      console.log('📋 Navigation data being passed:', navigationData);
+
+      return navigateWithData('/invoice', navigationData);
     }, [navigateWithData]),
 
     // Edit existing invoice
@@ -153,17 +196,27 @@ export const useLLMNavigation = () => {
 
     // Create customer
     createCustomer: useCallback((preData = {}) => {
+      console.log('🏗️ Navigating to create customer with data:', preData);
+
       return navigateWithData('/customer', {
         action: 'create',
-        prefill: preData
+        prefill: preData,
+        aiGenerated: true,
+        conversationReturn: true,
+        returnToAssistant: true
       });
     }, [navigateWithData]),
 
     // Create product
     createProduct: useCallback((preData = {}) => {
+      console.log('🏗️ Navigating to create product with data:', preData);
+
       return navigateWithData('/product', {
         action: 'create',
-        prefill: preData
+        prefill: preData,
+        aiGenerated: true,
+        conversationReturn: true,
+        returnToAssistant: true
       });
     }, [navigateWithData])
   };
