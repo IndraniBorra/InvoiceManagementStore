@@ -58,7 +58,14 @@ const AutoComplete = ({
   const [loadError, setLoadError] = useState(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  
+
+  // Sync external value changes (e.g. LLM pre-fill)
+  useEffect(() => {
+    if (value !== undefined && value !== inputValue) {
+      setInputValue(value);
+    }
+  }, [value]);
+
   // Refs
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);

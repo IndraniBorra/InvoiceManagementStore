@@ -18,6 +18,7 @@ build/
 
 # misc
 .DS_Store
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -53,3 +54,7 @@ __pycache__/
 # ML Models - too large for git
 frontend/invoicemanagement-app/public/models/*.onnx
 frontend/invoicemanagement-app/public/models/*/*.onnx
+
+# Python virtualenv
+.venv/
+venv/

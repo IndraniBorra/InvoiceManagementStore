@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const CustomerPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [showList, setShowList] = useState(false);
   const [formData, setFormData] = useState({
@@ -30,6 +31,13 @@ const CustomerPage = () => {
   
 
 
+  // Auto-open list when navigated from LLM "show customers"
+  useEffect(() => {
+    if (location.state?.showList) {
+      setShowList(true);
+    }
+  }, [location.state]);
+
   useEffect(() => {
     if (showList) {
       fetchCustomers();
@@ -38,20 +46,14 @@ const CustomerPage = () => {
 
   // Handle extracted data from AI assistant - auto-fill form
   useEffect(() => {
-    if (location.state?.extractedData && location.state?.action === 'create_customer_with_data') {
-      console.log('🎯 Customer creation with extracted data:', location.state.extractedData);
-      const extractedData = location.state.extractedData;
-
-      // Auto-fill form with extracted data
-      const newFormData = {
-        customer_name: extractedData.customer_name || '',
-        customer_address: extractedData.customer_address || '',
-        customer_phone: extractedData.customer_phone || '',
-        customer_email: extractedData.customer_email || '',
-      };
-
-      console.log('✅ Auto-filling customer form with extracted data:', newFormData);
-      setFormData(newFormData);
+    const data = location.state?.llmData || location.state?.extractedData;
+    if (data && location.state?.action === 'create_customer_with_data') {
+      setFormData({
+        customer_name:    data.customer_name    || '',
+        customer_address: data.customer_address || '',
+        customer_phone:   data.customer_phone   || '',
+        customer_email:   data.customer_email   || '',
+      });
     }
   }, [location.state]);
 
@@ -84,13 +86,36 @@ const CustomerPage = () => {
             const response = await apiClient.put(`/customer/${editingId}`, formData);
             console.log('Update Response:', response.data);
             alert(`Customer ID: ${response.data.customer_id} updated successfully!`);
+            resetForm();
+            fetchCustomers();
           } else {
             const response = await apiClient.post('/customer', formData);
-            console.log('Create Response:', response.data);
-            alert(`Customer ID: ${response.data.customer_id} created successfully!`);
+            const newCustomer = response.data;
+            if (location.state?.returnToInvoice) {
+              const intent = location.state.returnToInvoice;
+              alert(`Customer "${newCustomer.customer_name}" created! Taking you back to invoice creation.`);
+              navigate('/invoice', {
+                state: {
+                  action: 'create_invoice_with_data',
+                  llmData: {
+                    customer_id:      newCustomer.customer_id,
+                    customer_name:    newCustomer.customer_name,
+                    customer_address: newCustomer.customer_address,
+                    customer_phone:   newCustomer.customer_phone,
+                    line_items: [{
+                      product_description: intent.product_description || '',
+                      lineitem_qty:        intent.lineitem_qty        || 1,
+                      product_price:       intent.product_price       || 0,
+                    }],
+                  },
+                },
+              });
+              return;
+            }
+            alert(`Customer ID: ${newCustomer.customer_id} created successfully!`);
+            resetForm();
+            fetchCustomers();
           }
-          resetForm();
-          fetchCustomers();
         } catch (err) {
         if (err.response?.data?.detail) {
           alert(`Error: ${err.response.data.detail}`);

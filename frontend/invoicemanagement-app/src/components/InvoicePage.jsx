@@ -309,6 +309,7 @@ const InvoicePage = () => {
 
            
             <CustomerSearch
+              value={formData.customer_name}
               onSelect={(customer, customerId) => {
                 setFormData({
                   ...formData,

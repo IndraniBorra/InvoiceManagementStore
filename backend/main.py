@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI
 from mangum import Mangum
 from database import create_db_and_tables
@@ -8,6 +10,7 @@ from routes.customer_routes import router as customer_router
 from routes.product_routes import router as product_router
 from routes.health import router as health_router
 from routes.report_routes import router as report_router
+from routes.assistant import router as assistant_router
 
 # Import security middleware
 from middleware.validation import InputValidationMiddleware, SecurityHeadersMiddleware
@@ -97,6 +100,7 @@ app.include_router(customer_router)
 app.include_router(product_router)
 app.include_router(health_router)
 app.include_router(report_router)
+app.include_router(assistant_router)
 
 # Lambda handler for serverless deployment
 handler = Mangum(app)

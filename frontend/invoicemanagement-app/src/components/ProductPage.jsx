@@ -1,10 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/components/InvoicePage.css'; // Using shared styles
 
 const ProductPage = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]); // State to hold products to show in the table format
     const [showList, setShowList] = useState(false); // State to toggle between form and list view
     const [formData, setFormData] = useState({      // State to hold form data
@@ -30,8 +31,8 @@ const ProductPage = () => {
     
     // Handle pre-filled data from LLM Assistant
     useEffect(() => {
-        if (location.state?.extractedData && location.state?.action === 'create_product_with_data') {
-            const extracted = location.state.extractedData;
+        const extracted = location.state?.llmData || location.state?.extractedData;
+        if (extracted && location.state?.action === 'create_product_with_data') {
             console.log('🎯 ProductPage: Received pre-filled data:', extracted);
 
             setExtractedInfo({
@@ -47,6 +48,13 @@ const ProductPage = () => {
             });
 
             setShowConfirmation(true);
+        }
+    }, [location.state]);
+
+    // Auto-open list when navigated from LLM "show products"
+    useEffect(() => {
+        if (location.state?.showList) {
+            setShowList(true);
         }
     }, [location.state]);
 
@@ -80,12 +88,37 @@ const ProductPage = () => {
         if (editingId) {
             const response = await apiClient.put(`/product/${editingId}`, formData);
             alert(`Product ID: ${response.data.product_id} updated successfully!`);
+            resetForm();
+            fetchProducts();
         } else {
             const response = await apiClient.post('/product', formData);
-            alert(`Product ID: ${response.data.product_id} created successfully!`);
+            const newProduct = response.data;
+            if (location.state?.returnToInvoice) {
+              const intent = location.state.returnToInvoice;
+              alert(`Product "${newProduct.product_description}" created! Taking you back to invoice creation.`);
+              navigate('/invoice', {
+                state: {
+                  action: 'create_invoice_with_data',
+                  llmData: {
+                    customer_id:      intent.customer_id      || null,
+                    customer_name:    intent.customer_name    || '',
+                    customer_address: intent.customer_address || '',
+                    customer_phone:   intent.customer_phone   || '',
+                    line_items: [{
+                      product_id:          newProduct.product_id,
+                      product_description: newProduct.product_description,
+                      lineitem_qty:        intent.lineitem_qty  || 1,
+                      product_price:       newProduct.product_price,
+                    }],
+                  },
+                },
+              });
+              return;
+            }
+            alert(`Product ID: ${newProduct.product_id} created successfully!`);
+            resetForm();
+            fetchProducts();
         }
-        resetForm();
-        fetchProducts();
         } catch (err) {
         if (err.response?.data?.detail) {
             alert(`Error: ${err.response.data.detail}`);

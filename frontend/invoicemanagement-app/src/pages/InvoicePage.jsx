@@ -22,8 +22,9 @@ const InvoicePage = () => {
     loading,
     saving,
     error,
-    
+
     // Actions
+    setCurrentInvoice,
     updateInvoiceField,
     addLineItem,
     updateLineItem,
@@ -52,74 +53,36 @@ const InvoicePage = () => {
   // Handle AI-populated data from LLM Assistant
   useEffect(() => {
     if (!isEditing && location.state?.llmData && !aiPopulated) {
-      console.log('🤖 Detected LLM data for auto-population:', location.state.llmData);
+      const llmData = location.state.llmData;
+      const today = new Date().toISOString().split('T')[0];
 
-      try {
-        const llmData = location.state.llmData;
+      // Build full invoice state atomically — avoids resetCurrentInvoice wiping customer fields
+      const mappedItems = (llmData.line_items?.length > 0)
+        ? llmData.line_items.map(item => ({
+            product_id:          item.product_id          || null,
+            product_description: item.product_description || '',
+            lineitem_qty:        item.lineitem_qty         || 1,
+            product_price:       item.product_price        || 0,
+            line_items_total:    (item.lineitem_qty || 1) * (item.product_price || 0),
+          }))
+        : [{ product_id: null, product_description: '', lineitem_qty: 1, product_price: 0, line_items_total: 0 }];
 
-        // Populate customer fields
-        if (llmData.customer_name) {
-          updateInvoiceField('customer_name', llmData.customer_name);
-        }
-        if (llmData.customer_address) {
-          updateInvoiceField('customer_address', llmData.customer_address);
-        }
-        if (llmData.customer_phone) {
-          updateInvoiceField('customer_phone', llmData.customer_phone);
-        }
-        if (llmData.customer_email) {
-          updateInvoiceField('customer_email', llmData.customer_email);
-        }
-        if (llmData.customer_id) {
-          updateInvoiceField('customer_id', llmData.customer_id);
-        }
+      const invoiceTotal = mappedItems.reduce((sum, item) => sum + item.line_items_total, 0);
 
-        // Populate invoice fields
-        if (llmData.date_issued) {
-          updateInvoiceField('date_issued', llmData.date_issued);
-        }
-        if (llmData.invoice_terms) {
-          updateInvoiceField('invoice_terms', llmData.invoice_terms);
-        }
+      setCurrentInvoice({
+        customer_id:      llmData.customer_id      || null,
+        customer_name:    llmData.customer_name    || '',
+        customer_address: llmData.customer_address || '',
+        customer_phone:   llmData.customer_phone   || '',
+        date_issued:      llmData.date_issued       || today,
+        line_items:       mappedItems,
+        invoice_total:    invoiceTotal,
+      });
 
-        // Populate line items if available
-        if (llmData.line_items && Array.isArray(llmData.line_items) && llmData.line_items.length > 0) {
-          console.log('📦 Populating line items:', llmData.line_items);
-
-          // Clear current line items first
-          resetCurrentInvoice();
-
-          // Add each line item
-          llmData.line_items.forEach((item, index) => {
-            if (index === 0) {
-              // Update the first item (always exists)
-              if (item.product_id) updateLineItem(0, 'product_id', item.product_id);
-              if (item.product_description) updateLineItem(0, 'product_description', item.product_description);
-              if (item.lineitem_qty) updateLineItem(0, 'lineitem_qty', item.lineitem_qty);
-              if (item.product_price) updateLineItem(0, 'product_price', item.product_price);
-            } else {
-              // Add new line items
-              addLineItem();
-              // Wait for next tick to ensure item is added
-              setTimeout(() => {
-                if (item.product_id) updateLineItem(index, 'product_id', item.product_id);
-                if (item.product_description) updateLineItem(index, 'product_description', item.product_description);
-                if (item.lineitem_qty) updateLineItem(index, 'lineitem_qty', item.lineitem_qty);
-                if (item.product_price) updateLineItem(index, 'product_price', item.product_price);
-              }, 10);
-            }
-          });
-        }
-
-        setAiPopulated(true);
-        setShowAiNotice(true);
-        console.log('✅ AI data population completed');
-
-      } catch (error) {
-        console.error('❌ Error populating AI data:', error);
-      }
+      setAiPopulated(true);
+      setShowAiNotice(true);
     }
-  }, [location.state, isEditing, aiPopulated, updateInvoiceField, updateLineItem, addLineItem, resetCurrentInvoice]);
+  }, [location.state, isEditing, aiPopulated, setCurrentInvoice]);
 
   // Handle field changes
   const handleFieldChange = (field, value) => {

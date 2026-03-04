@@ -52,6 +52,9 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
             r"onclick\s*=",
         ]
 
+    # Paths exempt from SQL injection / XSS body scanning (natural language input)
+    EXEMPT_PATHS = {"/assistant/query"}
+
     async def dispatch(self, request: Request, call_next):
         """
         Main middleware dispatcher that validates all incoming requests.
@@ -59,16 +62,17 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
         try:
             # Check request size
             await self._validate_request_size(request)
-            
+
             # Validate Content-Type for POST/PUT requests
             await self._validate_content_type(request)
-            
+
             # Read and validate request body for applicable methods
             if request.method in ["POST", "PUT", "PATCH"]:
                 body = await request.body()
                 if body:
-                    await self._validate_request_body(body, request)
-                    
+                    if request.url.path not in self.EXEMPT_PATHS:
+                        await self._validate_request_body(body, request)
+
                     # Re-create request with validated body
                     request = self._recreate_request(request, body)
 

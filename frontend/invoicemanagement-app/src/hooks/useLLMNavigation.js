@@ -186,13 +186,13 @@ export const useLLMNavigation = () => {
   const entityNavigation = {
     // Show customers
     showCustomers: useCallback((filters = {}) => {
-      return navigateWithData('/customer', { filters });
-    }, [navigateWithData]),
+      return navigateToRoute('/customer', { showList: true, filters });
+    }, [navigateToRoute]),
 
     // Show products
     showProducts: useCallback((filters = {}) => {
-      return navigateWithData('/product', { filters });
-    }, [navigateWithData]),
+      return navigateToRoute('/product', { showList: true, filters });
+    }, [navigateToRoute]),
 
     // Create customer
     createCustomer: useCallback((preData = {}) => {
