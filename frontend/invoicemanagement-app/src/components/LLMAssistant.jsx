@@ -42,11 +42,34 @@ const LLMAssistant = () => {
     if (data.action === 'create_customer_with_data') {
       return `Creating customer: ${[d.customer_name, d.customer_address, d.customer_phone, d.customer_email].filter(Boolean).join(', ')}`;
     }
+    if (data.action === 'update_customer_with_data') {
+      const changes = [
+        d.new_customer_name ? `name → ${d.new_customer_name}` : null,
+        d.customer_phone    ? `phone → ${d.customer_phone}`   : null,
+        d.customer_address  ? `address → ${d.customer_address}` : null,
+        d.customer_email    ? `email → ${d.customer_email}`   : null,
+      ].filter(Boolean).join(', ');
+      return `Updating customer: ${d.customer_name || ''} (${changes})`;
+    }
     if (data.action === 'create_product_with_data') {
       return `Creating product: ${d.product_description || ''}${d.product_price ? ' at $' + d.product_price : ''}`;
     }
+    if (data.action === 'update_product_with_data') {
+      const changes = [
+        d.new_product_description ? `name → ${d.new_product_description}` : null,
+        d.product_price != null ? `price → $${d.product_price}` : null,
+      ].filter(Boolean).join(', ');
+      return `Updating product: ${d.product_description || ''} (${changes})`;
+    }
     if (data.action === 'create_invoice_with_data') {
+      if (d.line_items?.length > 0) {
+        const names = d.line_items.map(i => i.product_description).filter(Boolean).join(', ');
+        return `Creating invoice for ${d.customer_name || ''} with: ${names}`;
+      }
       return `Creating invoice for ${d.customer_name || ''} with ${d.product_description || ''} qty ${d.lineitem_qty || 1}`;
+    }
+    if (data.action === 'add_line_item_to_invoice') {
+      return `Adding ${d.product_description || 'item'} qty ${d.lineitem_qty || 1} to invoice #${data.invoice_id}`;
     }
     return `Action: ${data.action}`;
   };
@@ -73,8 +96,13 @@ const LLMAssistant = () => {
         show_reports:              'show reports',
         overdue_invoices:          'show overdue invoices',
         create_customer_with_data: 'create customer with your details',
+        update_customer_with_data: 'update customer with new values',
         create_product_with_data:  'create product with your details',
+        update_product_with_data:  'update product with new values',
         create_invoice_with_data:  'create invoice with your details',
+        add_line_item_to_invoice:  `add line item to invoice #${data.invoice_id}`,
+        invoice_edit_guidance:     `help with invoice #${data.invoice_id}`,
+        delete_invoice:            `delete invoice #${data.invoice_id}`,
         help:                      'show help',
       };
 
@@ -87,7 +115,12 @@ const LLMAssistant = () => {
         { role: 'assistant', content: buildAssistantSummary(data) },
       ].slice(-6);
 
-      if (['create_customer_with_data', 'create_product_with_data', 'create_invoice_with_data'].includes(data.action)) {
+      if (data.action === 'delete_invoice') {
+        addMessage('confirmation',
+          `⚠️ Permanently delete Invoice #${data.invoice_id}?\nThis removes the invoice and all its line items. This cannot be undone.`,
+          { action: 'confirm_delete', invoiceId: data.invoice_id }
+        );
+      } else if (['create_customer_with_data', 'update_customer_with_data', 'create_product_with_data', 'update_product_with_data', 'create_invoice_with_data', 'add_line_item_to_invoice', 'invoice_edit_guidance'].includes(data.action)) {
         await executeEntityCreation(data);
       } else if (data.action === 'overdue_invoices') {
         await executeAPIAction(data);
@@ -100,6 +133,17 @@ const LLMAssistant = () => {
       addMessage('system', 'Error connecting to assistant. Is the backend running?');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async (invoiceId) => {
+    addMessage('system', `🗑️ Deleting invoice #${invoiceId}...`);
+    try {
+      await axios.delete(`${API_BASE}/invoice/${invoiceId}`);
+      addMessage('assistant', `✅ Invoice #${invoiceId} deleted successfully.`);
+    } catch (error) {
+      const msg = error.response?.data?.detail || error.message;
+      addMessage('system', `❌ Failed to delete: ${msg}`);
     }
   };
 
@@ -157,6 +201,35 @@ const LLMAssistant = () => {
         return;
       }
 
+      // ── Customer update ───────────────────────────────────────────────────
+      if (action.action === 'update_customer_with_data') {
+        const { data: customers } = await axios.get(`${API_BASE}/customers`);
+        const customer = customers.find(c =>
+          c.customer_name.toLowerCase().includes(extracted_data.customer_name.toLowerCase())
+        );
+
+        if (!customer) {
+          addMessage('assistant', `⚠️ Customer "${extracted_data.customer_name}" not found. Check the name and try again.`);
+          return;
+        }
+
+        addMessage('assistant', `✅ Found: ${customer.customer_name}\n📋 Pre-filling edit form with new values...`);
+        navigate('/customer', {
+          state: {
+            action: 'update_customer_with_data',
+            editCustomerId: customer.customer_id,
+            llmData: {
+              customer_name:    extracted_data.new_customer_name || customer.customer_name,
+              customer_address: extracted_data.customer_address  || customer.customer_address,
+              customer_phone:   extracted_data.customer_phone    || customer.customer_phone,
+              customer_email:   extracted_data.customer_email    || customer.customer_email,
+            },
+          }
+        });
+        addMessage('system', '✅ Opening customer edit form — review and click Update Customer.');
+        return;
+      }
+
       // ── Product creation ─────────────────────────────────────────────────
       if (action.action === 'create_product_with_data') {
         addMessage('assistant', `📋 Pre-filling: ${extracted_data.product_description || ''} @ $${extracted_data.product_price || 0}`);
@@ -165,9 +238,87 @@ const LLMAssistant = () => {
         return;
       }
 
+      // ── Product update ───────────────────────────────────────────────────
+      if (action.action === 'update_product_with_data') {
+        const { data: products } = await axios.get(`${API_BASE}/products`);
+        const product = products.find(p =>
+          p.product_description.toLowerCase().includes(extracted_data.product_description.toLowerCase())
+        );
+
+        if (!product) {
+          addMessage('assistant', `⚠️ Product "${extracted_data.product_description}" not found. Check the name and try again.`);
+          return;
+        }
+
+        const newDescription = extracted_data.new_product_description || product.product_description;
+        const newPrice = extracted_data.product_price ?? product.product_price;
+
+        addMessage('assistant', `✅ Found: ${product.product_description}\n📋 Pre-filling edit form with new values...`);
+        navigate('/product', {
+          state: {
+            action: 'update_product_with_data',
+            editProductId: product.product_id,
+            llmData: {
+              product_description: newDescription,
+              product_price: newPrice,
+            },
+          }
+        });
+        addMessage('system', '✅ Opening product edit form — review and click Update Product.');
+        return;
+      }
+
+      // ── Add line item to existing invoice ────────────────────────────────
+      if (action.action === 'add_line_item_to_invoice') {
+        const invoiceId = action.invoice_id;
+        let pendingLineItem = {
+          product_id:          null,
+          product_description: extracted_data.product_description || '',
+          lineitem_qty:        extracted_data.lineitem_qty || 1,
+          product_price:       extracted_data.product_price || 0,
+        };
+
+        if (extracted_data.product_description) {
+          const { data: products } = await axios.get(`${API_BASE}/products`);
+          const product = products.find(p =>
+            p.product_description.toLowerCase().includes(
+              extracted_data.product_description.toLowerCase()
+            )
+          );
+          if (product) {
+            pendingLineItem.product_id    = product.product_id;
+            pendingLineItem.product_price = extracted_data.product_price ?? product.product_price;
+            addMessage('assistant', `✅ Found: ${product.product_description} @ $${product.product_price}`);
+          } else {
+            addMessage('assistant',
+              `⚠️ Product "${extracted_data.product_description}" not found — you can fill in the price manually.\nOpening invoice anyway...`
+            );
+          }
+        }
+
+        addMessage('system', `📝 Opening invoice #${invoiceId} in edit mode...`);
+        navigate(`/edit-invoice/${invoiceId}`, {
+          state: { action: 'add_line_item_to_invoice', pendingLineItem }
+        });
+        return;
+      }
+
+      // ── Warning: changing customer/product via an invoice is not supported ─
+      if (action.action === 'invoice_edit_guidance') {
+        addMessage('assistant',
+          `⚠️ Customer and product records can't be changed directly through an invoice.\n\n` +
+          `Here's what you can do instead:\n` +
+          `• "update customer [name] phone to ..." — updates the customer record\n` +
+          `• "update product [name] price to ..." — updates the product record\n` +
+          `• "add [product] qty N to invoice #${action.invoice_id}" — adds a new line item\n` +
+          `• "edit invoice #${action.invoice_id}" — opens the invoice to edit quantities/dates`
+        );
+        return;
+      }
+
       // ── Invoice creation: smart search ───────────────────────────────────
       if (action.action === 'create_invoice_with_data') {
-        addMessage('system', '🔍 Searching for customer and product...');
+        addMessage('system', '🔍 Searching for customer and products...');
 
         // Search customer by name
         let customer = null;
@@ -177,17 +328,6 @@ const LLMAssistant = () => {
             c.customer_name.toLowerCase().includes(extracted_data.customer_name.toLowerCase())
           );
         }
-
-        // Search product by description
-        let product = null;
-        if (extracted_data.product_description) {
-          const { data: products } = await axios.get(`${API_BASE}/products`);
-          product = products.find(p =>
-            p.product_description.toLowerCase().includes(extracted_data.product_description.toLowerCase())
-          );
-        }
-
-        const qty = extracted_data.lineitem_qty || 1;
 
         // Customer not found → go create it, remember invoice intent
         if (!customer) {
@@ -204,35 +344,54 @@ const LLMAssistant = () => {
           return;
         }
 
-        // Product not found → go create it, remember invoice intent + resolved customer
-        if (!product) {
-          addMessage('assistant',
-            `✅ Found customer: ${customer.customer_name}\n⚠️ Product "${extracted_data.product_description}" not found.\nOpening product creation form — after saving, you'll be returned to invoice creation.`
-          );
-          navigate('/product', {
-            state: {
-              action: 'create_product_with_data',
-              llmData: {
-                product_description: extracted_data.product_description,
-                product_price:       extracted_data.product_price,
-              },
-              returnToInvoice: {
-                ...extracted_data,
-                customer_id:      customer.customer_id,
-                customer_name:    customer.customer_name,
-                customer_address: customer.customer_address,
-                customer_phone:   customer.customer_phone,
-              },
-            }
-          });
-          return;
-        }
+        // Normalize to an array of items (supports both single and multi-product)
+        const rawItems = extracted_data.line_items?.length > 0
+          ? extracted_data.line_items
+          : extracted_data.product_description
+            ? [{ product_description: extracted_data.product_description, lineitem_qty: extracted_data.lineitem_qty || 1, product_price: extracted_data.product_price }]
+            : [];
 
-        // Both found — full pre-fill with IDs and calculated total
-        const total = (qty * product.product_price).toFixed(2);
-        addMessage('assistant',
-          `✅ Found: ${customer.customer_name}\n✅ Found: ${product.product_description}\n💰 ${qty} × $${product.product_price} = $${total}\nOpening invoice form...`
-        );
+        // Search all products in one request, then match each item
+        const { data: products } = await axios.get(`${API_BASE}/products`);
+        const resolvedItems = rawItems.map(item => {
+          const product = products.find(p =>
+            p.product_description.toLowerCase().includes((item.product_description || '').toLowerCase())
+          );
+          if (product) {
+            return {
+              product_id:          product.product_id,
+              product_description: product.product_description,
+              lineitem_qty:        item.lineitem_qty || 1,
+              product_price:       item.product_price ?? product.product_price,
+            };
+          }
+          return {
+            product_id:          null,
+            product_description: item.product_description || '',
+            lineitem_qty:        item.lineitem_qty || 1,
+            product_price:       item.product_price || 0,
+            notFound:            true,
+          };
+        });
+
+        // Build status message
+        let msg = `✅ Found: ${customer.customer_name}\n`;
+        resolvedItems.forEach(i => {
+          if (i.notFound) {
+            msg += `⚠️ "${i.product_description}" not found — fill in manually.\n`;
+          } else {
+            const lineTotal = (i.lineitem_qty * i.product_price).toFixed(2);
+            msg += `✅ Found: ${i.product_description} — ${i.lineitem_qty} × $${i.product_price} = $${lineTotal}\n`;
+          }
+        });
+        msg += 'Opening invoice form...';
+        addMessage('assistant', msg.trim());
+
+        // Strip internal notFound flag before passing to the form
+        const lineItems = resolvedItems.length > 0
+          ? resolvedItems.map(({ notFound, ...item }) => item)
+          : [{ product_id: null, product_description: '', lineitem_qty: 1, product_price: 0 }];
+
         navigate('/invoice', {
           state: {
             action: 'create_invoice_with_data',
@@ -241,12 +400,7 @@ const LLMAssistant = () => {
               customer_name:    customer.customer_name,
               customer_address: customer.customer_address,
               customer_phone:   customer.customer_phone,
-              line_items: [{
-                product_id:          product.product_id,
-                product_description: product.product_description,
-                lineitem_qty:        qty,
-                product_price:       product.product_price,
-              }],
+              line_items:       lineItems,
             },
           }
         });
@@ -324,9 +478,10 @@ const LLMAssistant = () => {
               <div key={message.id} className={`message ${message.type}`}>
                 <div className="message-header">
                   <span className="message-type">
-                    {message.type === 'user'      ? '👤' :
-                     message.type === 'assistant' ? '🤖' :
-                     message.type === 'system'    ? '⚙️' : '📊'}
+                    {message.type === 'user'         ? '👤' :
+                     message.type === 'assistant'    ? '🤖' :
+                     message.type === 'system'       ? '⚙️' :
+                     message.type === 'confirmation' ? '⚠️' : '📊'}
                   </span>
                   <span className="timestamp">{message.timestamp}</span>
                 </div>
@@ -339,6 +494,22 @@ const LLMAssistant = () => {
                     >
                       📋 View in App
                     </button>
+                  )}
+                  {message.metadata?.action === 'confirm_delete' && (
+                    <div className="confirm-buttons">
+                      <button
+                        className="confirm-btn confirm-btn--danger"
+                        onClick={() => handleDeleteConfirm(message.metadata.invoiceId)}
+                      >
+                        🗑️ Yes, Delete
+                      </button>
+                      <button
+                        className="confirm-btn confirm-btn--cancel"
+                        onClick={() => addMessage('system', '↩️ Delete cancelled.')}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

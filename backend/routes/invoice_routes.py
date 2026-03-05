@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from sqlalchemy.orm import selectinload, joinedload
 from database import get_session, engine
 from typing import List
@@ -81,9 +81,6 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
         line_items=line_items_data
     )
 
-    print(f"Creating Invoice: {invoice}")
-
-    invoice.invoice_status = "submitted"
     session.add(invoice)
     session.commit()
     session.refresh(invoice)
@@ -91,9 +88,13 @@ def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_
     return InvoiceMinimalResponse(
         id=invoice.id,
         customer_id=invoice.customer_id,
-        customer_name=invoice.customer.customer_name,
-        customer_address=invoice.customer.customer_address,
-        customer_phone=invoice.customer.customer_phone,
+        customer=CustomerMinimalResponse(
+            customer_id=invoice.customer.customer_id,
+            customer_name=invoice.customer.customer_name,
+            customer_address=invoice.customer.customer_address,
+            customer_phone=invoice.customer.customer_phone,
+            customer_email=invoice.customer.customer_email,
+        ),
         date_issued=invoice.date_issued,
         invoice_due_date=due_date,
         invoice_terms=invoice.invoice_terms,
@@ -201,14 +202,22 @@ def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
     invoice = session.exec(statement).unique().first()
 
     if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
+        max_id = session.exec(select(func.max(Invoice.id))).first() or 0
+        if invoice_id <= max_id:
+            raise HTTPException(status_code=404, detail=f"Invoice #{invoice_id} has been deleted")
+        else:
+            raise HTTPException(status_code=404, detail=f"Invoice #{invoice_id} does not exist")
 
     return InvoiceMinimalResponse(
         id=invoice.id,
         customer_id=invoice.customer_id,
-        customer_name=invoice.customer.customer_name,
-        customer_address=invoice.customer.customer_address,
-        customer_phone=invoice.customer.customer_phone,
+        customer=CustomerMinimalResponse(
+            customer_id=invoice.customer.customer_id,
+            customer_name=invoice.customer.customer_name,
+            customer_address=invoice.customer.customer_address,
+            customer_phone=invoice.customer.customer_phone,
+            customer_email=invoice.customer.customer_email,
+        ),
         date_issued=invoice.date_issued,
         invoice_due_date=invoice.invoice_due_date,
         invoice_terms=invoice.invoice_terms,
@@ -313,9 +322,14 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
 
     return InvoiceMinimalResponse(
         id=updated_invoice_db.id,
-        customer_name=updated_invoice_db.customer.customer_name,
-        customer_address=updated_invoice_db.customer.customer_address,
-        customer_phone=updated_invoice_db.customer.customer_phone,
+        customer_id=updated_invoice_db.customer_id,
+        customer=CustomerMinimalResponse(
+            customer_id=updated_invoice_db.customer.customer_id,
+            customer_name=updated_invoice_db.customer.customer_name,
+            customer_address=updated_invoice_db.customer.customer_address,
+            customer_phone=updated_invoice_db.customer.customer_phone,
+            customer_email=updated_invoice_db.customer.customer_email,
+        ),
         date_issued=updated_invoice_db.date_issued,
         invoice_due_date=updated_invoice_db.invoice_due_date,
         invoice_terms=updated_invoice_db.invoice_terms,

@@ -59,7 +59,14 @@ const InvoiceDetailsForm = ({
       
       <div className="invoice-status-info">
         <p className="text-sm">
-          <strong>Status:</strong> {formData.invoice_status || 'Draft'}
+          <strong>Status:</strong> {{
+            draft:      'Draft — being prepared',
+            submitted:  'Submitted — awaiting processing',
+            sent:       'Sent to customer',
+            paid:       'Paid',
+            overdue:    'Overdue — past due date',
+            cancelled:  'Cancelled',
+          }[formData.invoice_status] || 'Draft — being prepared'}
         </p>
       </div>
     </div>

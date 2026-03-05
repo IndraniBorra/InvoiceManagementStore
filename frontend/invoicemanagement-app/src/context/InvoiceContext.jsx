@@ -302,28 +302,35 @@ export const InvoiceProvider = ({ children }) => {
       const invoice = await invoiceApi.getById(id);
       
       // Transform backend data to frontend format
+      // API returns: customer nested under invoice.customer, line items under invoice.line_items,
+      // and fields named invoice_terms/invoice_due_date/invoice_status/invoice_total (not terms/due_date/status/total)
+      const cust = invoice.customer || {};
       const transformedInvoice = {
-        customer_id: invoice.customer_id,
-        customer_name: invoice.customer_name,
-        customer_address: invoice.customer_address,
-        customer_phone: invoice.customer_phone,
-        date_issued: invoice.date_issued,
-        invoice_terms: invoice.terms || 'Due end of the month',
-        invoice_due_date: invoice.due_date || '',
-        invoice_status: invoice.status || 'draft',
-        invoice_total: invoice.total || 0,
-        line_items: invoice.items?.map(item => ({
-          product_id: item.product_id || null,
-          product_description: item.product_description || item.line_items_description || '',
-          lineitem_qty: item.lineitem_qty || item.line_items_qty || 1,
-          product_price: item.product_price || item.line_items_price || 0,
-          line_items_total: (item.lineitem_qty || item.line_items_qty || 1) * (item.product_price || item.line_items_price || 0),
+        id:               invoice.id,
+        customer_id:      invoice.customer_id,
+        customer_name:    cust.customer_name    || '',
+        customer_address: cust.customer_address || '',
+        customer_phone:   cust.customer_phone   || '',
+        customer_email:   cust.customer_email   || '',
+        date_issued:      invoice.date_issued,
+        invoice_terms:    invoice.invoice_terms    || 'Due end of the month',
+        invoice_due_date: invoice.invoice_due_date || '',
+        invoice_status:   invoice.invoice_status   || 'draft',
+        invoice_total:    invoice.invoice_total    || 0,
+        line_items: invoice.line_items?.map(item => ({
+          product_id:          item.product_id || null,
+          product_description: item.product?.product_description || '',
+          lineitem_qty:        item.lineitem_qty || 1,
+          product_price:       item.product?.product_price || 0,
+          line_items_total:    item.lineitem_qty * (item.product?.product_price || 0),
         })) || [{ product_id: null, product_description: '', lineitem_qty: 1, product_price: 0, line_items_total: 0 }]
       };
       
       setCurrentInvoice(transformedInvoice);
+      return transformedInvoice;
     } catch (error) {
       setError(handleApiError(error));
+      return null;
     } finally {
       setLoading(false);
     }

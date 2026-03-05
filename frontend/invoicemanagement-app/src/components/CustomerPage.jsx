@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/components/InvoicePage.css'; // Using shared styles
@@ -16,6 +16,8 @@ const CustomerPage = () => {
   });
 
   const [editingId, setEditingId] = useState(null);
+  // Capture returnToInvoice once on mount; cleared after use so stale history can't retrigger it
+  const returnToInvoiceRef = useRef(location.state?.returnToInvoice || null);
 
   const fetchCustomers = async () => {
     try {
@@ -44,7 +46,7 @@ const CustomerPage = () => {
     }
   }, [showList]);
 
-  // Handle extracted data from AI assistant - auto-fill form
+  // Handle extracted data from AI assistant - auto-fill form (create)
   useEffect(() => {
     const data = location.state?.llmData || location.state?.extractedData;
     if (data && location.state?.action === 'create_customer_with_data') {
@@ -54,6 +56,21 @@ const CustomerPage = () => {
         customer_phone:   data.customer_phone   || '',
         customer_email:   data.customer_email   || '',
       });
+    }
+  }, [location.state]);
+
+  // Pre-fill edit form from LLM Assistant (update)
+  useEffect(() => {
+    if (location.state?.action === 'update_customer_with_data' && location.state?.editCustomerId) {
+      const data = location.state.llmData || {};
+      setEditingId(location.state.editCustomerId);
+      setFormData({
+        customer_name:    data.customer_name    || '',
+        customer_address: data.customer_address || '',
+        customer_phone:   data.customer_phone   || '',
+        customer_email:   data.customer_email   || '',
+      });
+      setShowList(true);
     }
   }, [location.state]);
 
@@ -91,25 +108,61 @@ const CustomerPage = () => {
           } else {
             const response = await apiClient.post('/customer', formData);
             const newCustomer = response.data;
-            if (location.state?.returnToInvoice) {
-              const intent = location.state.returnToInvoice;
-              alert(`Customer "${newCustomer.customer_name}" created! Taking you back to invoice creation.`);
-              navigate('/invoice', {
-                state: {
-                  action: 'create_invoice_with_data',
-                  llmData: {
-                    customer_id:      newCustomer.customer_id,
-                    customer_name:    newCustomer.customer_name,
-                    customer_address: newCustomer.customer_address,
-                    customer_phone:   newCustomer.customer_phone,
-                    line_items: [{
-                      product_description: intent.product_description || '',
-                      lineitem_qty:        intent.lineitem_qty        || 1,
-                      product_price:       intent.product_price       || 0,
-                    }],
+            const returnIntent = returnToInvoiceRef.current;
+            if (returnIntent) {
+              returnToInvoiceRef.current = null; // consume once — prevent stale retrigger
+
+              // Normalize to line_items array
+              const rawItems = returnIntent.line_items?.length > 0
+                ? returnIntent.line_items
+                : returnIntent.product_description
+                  ? [{ product_description: returnIntent.product_description, lineitem_qty: returnIntent.lineitem_qty || 1, product_price: returnIntent.product_price || 0 }]
+                  : [];
+
+              // Check which products already exist
+              let resolvedItems = rawItems.map(item => ({ ...item, product_id: item.product_id || null }));
+              try {
+                const { data: products } = await apiClient.get('/products');
+                resolvedItems = rawItems.map(item => {
+                  const found = products.find(p =>
+                    p.product_description.toLowerCase().includes((item.product_description || '').toLowerCase())
+                  );
+                  if (found) {
+                    return { product_id: found.product_id, product_description: found.product_description, lineitem_qty: item.lineitem_qty || 1, product_price: item.product_price ?? found.product_price };
+                  }
+                  return { product_id: null, product_description: item.product_description || '', lineitem_qty: item.lineitem_qty || 1, product_price: item.product_price || 0 };
+                });
+              } catch { /* use unresolved items if fetch fails */ }
+
+              const customerInfo = {
+                customer_id:      newCustomer.customer_id,
+                customer_name:    newCustomer.customer_name,
+                customer_address: newCustomer.customer_address,
+                customer_phone:   newCustomer.customer_phone,
+              };
+
+              const firstUnresolved = resolvedItems.find(item => item.product_id === null);
+              if (firstUnresolved) {
+                alert(`Customer "${newCustomer.customer_name}" created! Now let's create product "${firstUnresolved.product_description}".`);
+                navigate('/product', {
+                  state: {
+                    action: 'create_product_with_data',
+                    llmData: {
+                      product_description: firstUnresolved.product_description,
+                      product_price:       firstUnresolved.product_price || '',
+                    },
+                    returnToInvoice: { ...customerInfo, line_items: resolvedItems },
                   },
-                },
-              });
+                });
+              } else {
+                alert(`Customer "${newCustomer.customer_name}" created! Taking you back to invoice creation.`);
+                navigate('/invoice', {
+                  state: {
+                    action: 'create_invoice_with_data',
+                    llmData: { ...customerInfo, line_items: resolvedItems },
+                  },
+                });
+              }
               return;
             }
             alert(`Customer ID: ${newCustomer.customer_id} created successfully!`);

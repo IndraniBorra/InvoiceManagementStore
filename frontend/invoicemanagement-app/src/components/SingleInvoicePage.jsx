@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import Logo from './ui/Logo';
 import '../styles/components/SingleInvoicePage.css';
@@ -8,14 +8,9 @@ import '../styles/components/Logo.css';
 const SingleInvoicePage = () => {
   const invoiceRef = useRef();
   const { id } = useParams();
+  const navigate = useNavigate();
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState(null);
-
-  // Debug logging for navigation verification
-  console.log('📋 === SingleInvoicePage component loaded ===');
-  console.log('📋 Route parameter ID:', id);
-  console.log('📋 ID type:', typeof id);
-  console.log('📋 Current URL:', window.location.pathname);
 
   const [downloading, setDownloading] = useState(false);
 
@@ -122,7 +117,7 @@ const SingleInvoicePage = () => {
         }
       } catch (err) {
         console.error('Fetch error:', err);
-        setError("Invoice not found.");
+        setError(err.response?.data?.detail || err.message || "Invoice not found.");
       }
     };
 
@@ -130,7 +125,31 @@ const SingleInvoicePage = () => {
   }, [id]);
 
   if (error) {
-    return <div className="invoice-container"><p className="error">{error}</p></div>;
+    const heading = error.includes('deleted') ? 'Invoice Deleted'
+      : error.includes('not exist') ? 'Invoice Not Found'
+      : 'Error';
+    return (
+      <div className="invoice-container">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <h2 style={{ marginBottom: '12px' }}>{heading}</h2>
+          <p style={{ color: '#666', marginBottom: '24px' }}>{error}</p>
+          <button
+            onClick={() => navigate('/invoices')}
+            style={{
+              padding: '10px 20px',
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            ← Back to Invoices
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!invoice) {

@@ -159,6 +159,41 @@
   border: 1px solid rgba(168, 237, 234, 0.5);
 }
 
+.message.confirmation .message-content {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.12));
+  color: #333;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-left: 3px solid #f59e0b;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.confirm-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+.confirm-btn:hover { opacity: 0.85; }
+
+.confirm-btn--danger {
+  background: #ef4444;
+  color: white;
+}
+
+.confirm-btn--cancel {
+  background: rgba(0, 0, 0, 0.08);
+  color: #555;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
 .action-btn {
   margin-top: 8px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
