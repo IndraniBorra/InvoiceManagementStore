@@ -20,10 +20,18 @@ import './styles/components/AgingReport.css';
 import './styles/components/OverdueReport.css';
 import './styles/components/SingleInvoicePage.css';
 import './styles/components/Logo.css';
+import './styles/components/Navbar.css';
+import './styles/components/DashboardPage.css';
+import './styles/components/APModule.css';
 
 // Import pages
 import InvoicePage from './pages/InvoicePage';
 import ReportsPage from './pages/ReportsPage';
+import DashboardPage from './pages/DashboardPage';
+import APDashboard from './pages/APDashboard';
+import APInvoiceList from './pages/APInvoiceList';
+import APInvoiceDetail from './pages/APInvoiceDetail';
+import APVendors from './pages/APVendors';
 
 // Import old components for backward compatibility during transition
 import AllInvoicesPage from './components/AllInvoicesPage';
@@ -33,6 +41,7 @@ import ProductPage from './components/ProductPage';
 
 // Import LLM Assistant
 import LLMAssistant from './components/LLMAssistant';
+import Navbar from './components/Navbar';
 
 // Main App component
 const App = () => {
@@ -41,7 +50,11 @@ const App = () => {
       <InvoiceProvider>
         <Router>
           <div className="app">
+            <Navbar />
             <Routes>
+              {/* Dashboard - Home */}
+              <Route path="/" element={<DashboardPage />} />
+
               {/* Invoice Routes - Using new architecture */}
               <Route path="/invoice" element={<InvoicePage />} />
               <Route path="/edit-invoice/:id" element={<InvoicePage />} />
@@ -63,8 +76,14 @@ const App = () => {
               <Route path="/products" element={<ProductPage />} />
               <Route path="/product/:id" element={<ProductPage />} />
 
+              {/* Accounts Payable Routes */}
+              <Route path="/ap" element={<APDashboard />} />
+              <Route path="/ap/invoices" element={<APInvoiceList />} />
+              <Route path="/ap/invoice/:id" element={<APInvoiceDetail />} />
+              <Route path="/ap/vendors" element={<APVendors />} />
+
               {/* Default/Fallback Route */}
-              <Route path="*" element={<InvoicePage />} />
+              <Route path="*" element={<DashboardPage />} />
             </Routes>
             
             {/* LLM Assistant - Available on all pages */}

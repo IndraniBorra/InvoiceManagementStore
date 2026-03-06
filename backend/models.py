@@ -4,6 +4,80 @@ from typing import Optional, List
 from pydantic import field_validator
 from datetime import date, datetime
 
+
+# ── Accounts Payable Models ────────────────────────────────────────────────────
+
+class APVendor(SQLModel, table=True):
+    __tablename__ = "ap_vendor"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    vendor_name: str = Field(index=True)
+    vendor_email: Optional[str] = Field(default=None, index=True)
+    vendor_address: Optional[str] = None
+    vendor_phone: Optional[str] = None
+    bank_details: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    invoices: List["APInvoice"] = Relationship(back_populates="vendor")
+
+
+class APInvoice(SQLModel, table=True):
+    __tablename__ = "ap_invoice"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    vendor_id: Optional[int] = Field(default=None, foreign_key="ap_vendor.id", index=True)
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[date] = Field(default=None, index=True)
+    due_date: Optional[date] = Field(default=None, index=True)
+    total_amount: float = Field(default=0.0)
+    currency: str = Field(default="USD")
+    status: str = Field(default="pending_review", index=True)  # pending_review | approved | paid | rejected
+    email_subject: Optional[str] = None
+    email_from: Optional[str] = None
+    email_received_at: Optional[datetime] = None
+    pdf_filename: Optional[str] = None
+    extraction_confidence: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    vendor: Optional["APVendor"] = Relationship(back_populates="invoices")
+    line_items: List["APLineItem"] = Relationship(
+        back_populates="ap_invoice",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    payments: List["APPayment"] = Relationship(
+        back_populates="ap_invoice",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+
+class APLineItem(SQLModel, table=True):
+    __tablename__ = "ap_line_item"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ap_invoice_id: int = Field(foreign_key="ap_invoice.id", index=True)
+    description: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    line_total: Optional[float] = None
+
+    ap_invoice: Optional["APInvoice"] = Relationship(back_populates="line_items")
+
+
+class APPayment(SQLModel, table=True):
+    __tablename__ = "ap_payment"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ap_invoice_id: int = Field(foreign_key="ap_invoice.id", index=True)
+    payment_date: date
+    payment_amount: float
+    payment_method: str  # bank_transfer | check | credit_card | other
+    payment_reference: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    ap_invoice: Optional["APInvoice"] = Relationship(back_populates="payments")
+
 #Database models
 class Invoice(SQLModel, table=True):
     __tablename__ = "invoice"

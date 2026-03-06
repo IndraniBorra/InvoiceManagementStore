@@ -66,8 +66,11 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
             # Validate Content-Type for POST/PUT requests
             await self._validate_content_type(request)
 
-            # Read and validate request body for applicable methods
-            if request.method in ["POST", "PUT", "PATCH"]:
+            # Read and validate request body for JSON requests only.
+            # Multipart/form-data (file uploads) must not have their receive
+            # stream consumed here — FastAPI needs it intact for UploadFile parsing.
+            content_type = request.headers.get('content-type', '')
+            if request.method in ["POST", "PUT", "PATCH"] and content_type.startswith('application/json'):
                 body = await request.body()
                 if body:
                     if request.url.path not in self.EXEMPT_PATHS:
@@ -118,17 +121,21 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
     async def _validate_content_type(self, request: Request):
         """
         Validate Content-Type header for requests with body.
+        Requests with no Content-Type (empty body, e.g. /approve) are allowed through.
         """
         if request.method in ["POST", "PUT", "PATCH"]:
             content_type = request.headers.get('content-type', '').lower()
-            
+
+            # No Content-Type means no body — nothing to validate
+            if not content_type:
+                return
+
             allowed_types = [
                 'application/json',
                 'application/x-www-form-urlencoded',
                 'multipart/form-data'
             ]
-            
-            # Check if content-type starts with any allowed type
+
             if not any(content_type.startswith(allowed) for allowed in allowed_types):
                 raise HTTPException(
                     status_code=415,
@@ -139,6 +146,11 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
         """
         Validate and sanitize request body content.
         """
+        content_type = request.headers.get('content-type', '')
+        # Only validate JSON bodies — multipart/form-data can contain binary (e.g. PDFs)
+        if not content_type.startswith('application/json'):
+            return
+
         try:
             # Decode body
             body_str = body.decode('utf-8')

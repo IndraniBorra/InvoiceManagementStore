@@ -11,6 +11,7 @@ from routes.product_routes import router as product_router
 from routes.health import router as health_router
 from routes.report_routes import router as report_router
 from routes.assistant import router as assistant_router
+from routes.ap_routes import router as ap_router
 
 # Import security middleware
 from middleware.validation import InputValidationMiddleware, SecurityHeadersMiddleware
@@ -101,6 +102,7 @@ app.include_router(product_router)
 app.include_router(health_router)
 app.include_router(report_router)
 app.include_router(assistant_router)
+app.include_router(ap_router)
 
 # Lambda handler for serverless deployment
 handler = Mangum(app)
