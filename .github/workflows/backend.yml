@@ -43,6 +43,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           LOG_LEVEL: INFO
           DEBUG_MODE: "false"
         run: sls deploy --stage dev --verbose
