@@ -34,7 +34,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Install Serverless Framework
-        run: npm install -g serverless serverless-python-requirements
+        run: npm install -g serverless
 
       - name: Deploy
         working-directory: backend

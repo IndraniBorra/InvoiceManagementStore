@@ -1,9 +1,6 @@
 org: indrani
 service: invoicemanagement-backend
 
-plugins:
-  - serverless-python-requirements
-
 provider:
   name: aws
   runtime: python3.12
