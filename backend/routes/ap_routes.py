@@ -2,7 +2,10 @@ import os
 from datetime import date, datetime
 from typing import List, Optional
 
+import boto3
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -12,8 +15,11 @@ from services.ap_extractor import extract_from_bytes
 
 router = APIRouter(tags=["accounts-payable"])
 
+# Local fallback directory (used when S3_UPLOADS_BUCKET is not set)
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "ap")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+S3_BUCKET = os.getenv("S3_UPLOADS_BUCKET", "")
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -127,10 +133,19 @@ def _find_or_create_vendor(
 
 
 def _save_pdf(pdf_bytes: bytes, invoice_id: int) -> str:
+    """Save PDF to S3 (production) or local filesystem (development)."""
     filename = f"{invoice_id}.pdf"
-    path = os.path.join(UPLOAD_DIR, filename)
-    with open(path, "wb") as f:
-        f.write(pdf_bytes)
+    if S3_BUCKET:
+        boto3.client("s3").put_object(
+            Bucket=S3_BUCKET,
+            Key=f"ap/{filename}",
+            Body=pdf_bytes,
+            ContentType="application/pdf",
+        )
+    else:
+        path = os.path.join(UPLOAD_DIR, filename)
+        with open(path, "wb") as f:
+            f.write(pdf_bytes)
     return filename
 
 
@@ -352,14 +367,27 @@ def get_ap_invoice(invoice_id: int, session: Session = Depends(get_session)):
 
 @router.get("/ap/invoice/{invoice_id}/pdf")
 def serve_pdf(invoice_id: int, session: Session = Depends(get_session)):
-    from fastapi.responses import FileResponse
     invoice = session.get(APInvoice, invoice_id)
     if not invoice or not invoice.pdf_filename:
         raise HTTPException(status_code=404, detail="PDF not found")
-    path = os.path.join(UPLOAD_DIR, invoice.pdf_filename)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="PDF file missing on disk")
-    return FileResponse(path, media_type="application/pdf")
+
+    if S3_BUCKET:
+        # Production: proxy PDF bytes from S3 through Lambda
+        # (avoids CORS/iframe issues with presigned URLs)
+        try:
+            obj = boto3.client("s3").get_object(
+                Bucket=S3_BUCKET, Key=f"ap/{invoice.pdf_filename}"
+            )
+            return Response(content=obj["Body"].read(), media_type="application/pdf")
+        except ClientError as e:
+            raise HTTPException(status_code=404, detail="PDF not found in storage")
+    else:
+        # Local development: serve from filesystem
+        from fastapi.responses import FileResponse
+        path = os.path.join(UPLOAD_DIR, invoice.pdf_filename)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="PDF file missing on disk")
+        return FileResponse(path, media_type="application/pdf")
 
 
 # ── Update (user corrects extracted fields) ───────────────────────────────────

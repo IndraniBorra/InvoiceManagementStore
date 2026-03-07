@@ -1,4 +1,3 @@
-# "org" ensures this Service is used with the correct Serverless Framework Access Key.
 org: indrani
 service: invoicemanagement-backend
 
@@ -8,37 +7,100 @@ plugins:
 provider:
   name: aws
   runtime: python3.12
-  stage: ${opt:stage, "local"}
+  stage: ${opt:stage, "dev"}
   region: us-east-1
   deploymentBucket:
     name: cf-templates--embz8ioxogig-us-east-1
 
+  # ── X-Ray Tracing ────────────────────────────────────────────────────────────
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  # ── IAM Permissions ──────────────────────────────────────────────────────────
+  iam:
+    role:
+      statements:
+        # S3: read/write invoice PDFs
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: "arn:aws:s3:::smartinvoice-${self:provider.stage}-uploads/*"
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource: "arn:aws:s3:::smartinvoice-${self:provider.stage}-uploads"
+        # Textract: PDF extraction (Phase 4)
+        - Effect: Allow
+          Action:
+            - textract:AnalyzeDocument
+            - textract:DetectDocumentText
+          Resource: "*"
+        # SageMaker: ML inference (Phase 4)
+        - Effect: Allow
+          Action:
+            - sagemaker:InvokeEndpoint
+          Resource: "*"
+        # SES: send emails (Phase 3)
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
+        # X-Ray
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: "*"
+
+  # ── Lambda Environment Variables ──────────────────────────────────────────────
+  environment:
+    STAGE: ${self:provider.stage}
+    # Database: set DATABASE_URL in GitHub Secrets after first deploy
+    # Format: postgresql://admin:PASSWORD@RDS_ENDPOINT:5432/smartinvoice?sslmode=require
+    # Leave empty on first deploy (falls back to SQLite — data won't persist)
+    DATABASE_URL: ${env:DATABASE_URL, ""}
+    # S3 bucket for invoice PDF uploads
+    S3_UPLOADS_BUCKET: "smartinvoice-${self:provider.stage}-uploads"
+    # API keys — set in GitHub Secrets
+    ANTHROPIC_API_KEY: ${env:ANTHROPIC_API_KEY, ""}
+    # CORS — add your CloudFront URL here after Phase 2
+    ALLOWED_ORIGINS: ${env:ALLOWED_ORIGINS, "http://localhost:3000,http://localhost:3002"}
+    # Logging
+    LOG_LEVEL: ${env:LOG_LEVEL, "INFO"}
+    DEBUG_MODE: ${env:DEBUG_MODE, "false"}
+
+
 package:
-    exclude:
-        - Makefile
-        - poetry.lock
-        - README.md
-        - tests/**
-        - docs/**
-        - node_modules/**
-        - .venv/**
-        - .serverless/**
-        - package.json
-        - package-lock.json
-        - .pytest_cache
-        - .hypothesis
-        - __pycache__/**
+  exclude:
+    - Makefile
+    - poetry.lock
+    - README.md
+    - tests/**
+    - docs/**
+    - node_modules/**
+    - .venv/**
+    - .serverless/**
+    - package.json
+    - package-lock.json
+    - .pytest_cache
+    - .hypothesis
+    - __pycache__/**
+    - uploads/**
+    - database.db
 
 
 custom:
   pythonRequirements:
-    # dockerFile: Dockerfile
     dockerizePip: true
     invalidateCache: true
     useStaticCache: true
     layer:
-      name: serverless-fastapi-deps
-      description: Dependencies of serverless-fastapi
+      name: smartinvoice-deps-${self:provider.stage}
+      description: Python dependencies for SmartInvoice
       compatibleRuntimes:
         - python3.12
 
@@ -46,11 +108,210 @@ custom:
 functions:
   main:
     handler: main.handler
-    environment:
-      STAGE: ${self:provider.stage}
+    timeout: 30
+    memorySize: 512
     layers:
       - { Ref: PythonRequirementsLambdaLayer }
     events:
       - http:
           method: any
+          path: /
+      - http:
+          method: any
           path: /{proxy+}
+
+    # ── VPC (uncomment for production — requires NAT Gateway for internet access) ──
+    # vpc:
+    #   securityGroupIds:
+    #     - !Ref LambdaSecurityGroup
+    #   subnetIds:
+    #     - !Ref PrivateSubnet1
+    #     - !Ref PrivateSubnet2
+
+
+resources:
+  Resources:
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # VPC — minimal 2-subnet setup for RDS
+    # Lambda stays OUTSIDE VPC for Phase 1 (avoids NAT Gateway cost ~$32/month)
+    # For production: move Lambda into private subnets + add NAT Gateway
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    VPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-vpc"
+
+    PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone: us-east-1a
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-public-1a"
+
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.2.0/24
+        AvailabilityZone: us-east-1b
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-public-1b"
+
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-igw"
+
+    IGWAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref VPC
+        InternetGatewayId: !Ref InternetGateway
+
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref VPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: IGWAttachment
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+
+    SubnetRouteTableAssoc1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet1
+        RouteTableId: !Ref PublicRouteTable
+
+    SubnetRouteTableAssoc2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet2
+        RouteTableId: !Ref PublicRouteTable
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # RDS Security Group
+    # DEV: allows 5432 from anywhere (Lambda is outside VPC, needs public access)
+    # PROD: restrict CidrIp to Lambda's VPC CIDR or SG reference
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    DBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "SmartInvoice RDS - allow PostgreSQL"
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: 0.0.0.0/0   # DEV ONLY — tighten for prod
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-db-sg"
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # RDS DB Subnet Group
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    DBSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: "SmartInvoice DB subnet group"
+        SubnetIds:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # RDS PostgreSQL — db.t3.micro (free tier eligible, ~$13/month otherwise)
+    # DeletionPolicy: Snapshot — protects data on stack delete
+    # After first deploy: copy the Endpoint.Address from AWS Console
+    # and set DATABASE_URL = postgresql://admin:PASSWORD@ENDPOINT:5432/smartinvoice?sslmode=require
+    # in GitHub Secrets, then redeploy.
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    RDSInstance:
+      Type: AWS::RDS::DBInstance
+      DeletionPolicy: Snapshot
+      Properties:
+        DBInstanceIdentifier: "smartinvoice-${self:provider.stage}-db"
+        DBInstanceClass: db.t3.micro
+        Engine: postgres
+        EngineVersion: "15"
+        MasterUsername: smartinvoice_admin
+        MasterUserPassword: ${env:DB_PASSWORD, "changeme_set_in_github_secrets"}
+        DBName: smartinvoice
+        AllocatedStorage: "20"
+        StorageType: gp2
+        StorageEncrypted: true
+        PubliclyAccessible: true    # DEV: Lambda outside VPC needs this
+        MultiAZ: false              # DEV: single AZ for cost savings
+        DBSubnetGroupName: !Ref DBSubnetGroup
+        VPCSecurityGroups:
+          - !Ref DBSecurityGroup
+        BackupRetentionPeriod: 7
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-db"
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # S3 — Invoice PDF uploads (private, encrypted)
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    S3UploadsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: "smartinvoice-${self:provider.stage}-uploads"
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldVersions
+              Status: Enabled
+              NoncurrentVersionExpirationInDays: 90
+        Tags:
+          - Key: Name
+            Value: "smartinvoice-${self:provider.stage}-uploads"
+
+  # ── CloudFormation Outputs ────────────────────────────────────────────────────
+  Outputs:
+    RDSEndpoint:
+      Description: "RDS PostgreSQL endpoint — use in DATABASE_URL"
+      Value: !GetAtt RDSInstance.Endpoint.Address
+      Export:
+        Name: "smartinvoice-${self:provider.stage}-db-endpoint"
+
+    S3UploadsBucket:
+      Description: "S3 bucket for invoice PDF uploads"
+      Value: !Ref S3UploadsBucket
+      Export:
+        Name: "smartinvoice-${self:provider.stage}-uploads-bucket"
+
+    ApiGatewayUrl:
+      Description: "API Gateway URL — use as REACT_APP_API_URL in frontend"
+      Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}"
