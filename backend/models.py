@@ -1,135 +1,215 @@
 from sqlmodel import SQLModel, Field, Relationship
-from pydantic import BaseModel, EmailStr, field_validator
-
-from pydantic import BaseModel
+from sqlalchemy import Index
 from typing import Optional, List
-from datetime import date
+from pydantic import field_validator
+from datetime import date, datetime
+
+
+# ── Accounts Payable Models ────────────────────────────────────────────────────
+
+class APVendor(SQLModel, table=True):
+    __tablename__ = "ap_vendor"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    vendor_name: str = Field(index=True)
+    vendor_email: Optional[str] = Field(default=None, index=True)
+    vendor_address: Optional[str] = None
+    vendor_phone: Optional[str] = None
+    bank_details: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    invoices: List["APInvoice"] = Relationship(back_populates="vendor")
+
+
+class APInvoice(SQLModel, table=True):
+    __tablename__ = "ap_invoice"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    vendor_id: Optional[int] = Field(default=None, foreign_key="ap_vendor.id", index=True)
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[date] = Field(default=None, index=True)
+    due_date: Optional[date] = Field(default=None, index=True)
+    total_amount: float = Field(default=0.0)
+    currency: str = Field(default="USD")
+    status: str = Field(default="pending_review", index=True)  # pending_review | approved | paid | rejected
+    email_subject: Optional[str] = None
+    email_from: Optional[str] = None
+    email_received_at: Optional[datetime] = None
+    pdf_filename: Optional[str] = None
+    extraction_confidence: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    vendor: Optional["APVendor"] = Relationship(back_populates="invoices")
+    line_items: List["APLineItem"] = Relationship(
+        back_populates="ap_invoice",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    payments: List["APPayment"] = Relationship(
+        back_populates="ap_invoice",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+
+class APLineItem(SQLModel, table=True):
+    __tablename__ = "ap_line_item"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ap_invoice_id: int = Field(foreign_key="ap_invoice.id", index=True)
+    description: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    line_total: Optional[float] = None
+
+    ap_invoice: Optional["APInvoice"] = Relationship(back_populates="line_items")
+
+
+class APPayment(SQLModel, table=True):
+    __tablename__ = "ap_payment"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ap_invoice_id: int = Field(foreign_key="ap_invoice.id", index=True)
+    payment_date: date
+    payment_amount: float
+    payment_method: str  # bank_transfer | check | credit_card | other
+    payment_reference: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    ap_invoice: Optional["APInvoice"] = Relationship(back_populates="payments")
 
 #Database models
 class Invoice(SQLModel, table=True):
+    __tablename__ = "invoice"
+    
     id: Optional[int] = Field(default=None, primary_key=True)
-    customer_name: str
-    address: str
-    phone: str
-    date_issued: date
-    total: float = 0.0
-    terms: str
-    due_date: date
-    items: List["InvoiceItem"] = Relationship(back_populates="invoice")
-    invoice_status: str = Field(default="draft")
+    customer_id: int = Field(foreign_key="customer.customer_id", index=True)  # Index for customer lookups
+    date_issued: date = Field(index=True)  # Index for date-based queries
+    invoice_terms: str
+    invoice_due_date: date = Field(index=True)  # Index for due date queries
+    line_items: List["LineItem"] = Relationship(back_populates="invoice", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Invoice.id == LineItem.invoice_id"})
+    invoice_total: float = 0.0
+    invoice_status: str = Field(default="draft", index=True)  # Index for status filtering
+    
+    # Status tracking timestamps
+    date_submitted: Optional[datetime] = Field(default=None, index=True)
+    date_sent: Optional[datetime] = Field(default=None, index=True)
+    date_paid: Optional[datetime] = Field(default=None, index=True)
+    date_cancelled: Optional[datetime] = Field(default=None)
 
-    @field_validator("customer_name", "address", "phone", "date_issued", "terms", "due_date")
+    customer: Optional["Customer"] = Relationship(back_populates="invoices")  # many-to-one relationship with Customer
+    
+    # Define composite indexes for common query patterns
+    __table_args__ = (
+        Index('idx_customer_date', 'customer_id', 'date_issued'),  # Customer invoice history
+        Index('idx_status_date', 'invoice_status', 'date_issued'),  # Status-based filtering with dates
+        Index('idx_due_date_status', 'invoice_due_date', 'invoice_status'),  # Overdue invoice queries
+    )
+    
+
+
+    @field_validator("date_issued", "invoice_terms", "invoice_due_date", "invoice_status")
     @classmethod
     def not_empty(cls, v):
-        if not v.strip():
+        if not v:
+            raise ValueError("This field cannot be empty")
+        return v
+    @field_validator("invoice_total")
+    @classmethod
+    def positive_total(cls, v):
+        if v is None or v < 0:
+            raise ValueError("Total must be a positive number")
+        return v
+    
+
+
+
+class LineItem(SQLModel, table=True):
+    __tablename__ = "lineitem"
+    
+    lineitem_id: Optional[int] = Field(default=None, primary_key=True)
+    lineitem_qty: int = Field(..., gt=0, description="Quantity must be > 0")
+    lineitem_total: float = Field(..., gt=0, description="Total must be > 0")
+    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id", index=True)  # Index for invoice lookups
+    invoice: Optional["Invoice"] = Relationship(back_populates="line_items")  # many-to-one relationship with Invoice
+    product_id: Optional[int] = Field(default=None, foreign_key="product.product_id", index=True)  # Index for product lookups
+    product: Optional["Product"] = Relationship(back_populates="line_items")  # many-to-one relationship with Product
+    
+    # Composite index for common queries
+    __table_args__ = (
+        Index('idx_invoice_product', 'invoice_id', 'product_id'),  # Invoice line item queries
+    )
+
+    @field_validator("lineitem_qty")
+    @classmethod
+    def not_empty(cls, v):
+        if v is None or v < 0:
+            raise ValueError("This field cannot be empty or negative")
+        return v
+
+
+class Customer(SQLModel, table=True):
+    __tablename__ = "customer"
+    
+    customer_id: Optional[int] = Field(default=None, primary_key=True)
+    customer_name: str = Field(index=True)  # Index for name searches
+    customer_address: str
+    customer_phone: str = Field(index=True)  # Index for phone lookups
+    customer_email: str = Field(default=None, index=True)  # Index for email lookups
+
+    invoices: List["Invoice"] = Relationship(back_populates="customer")
+    
+    # Composite index for customer searches
+    __table_args__ = (
+        Index('idx_customer_search', 'customer_name', 'customer_email'),  # Name and email search
+    )
+
+
+
+    @field_validator("customer_name", "customer_address")
+    @classmethod
+    def not_empty(cls, v):
+        if not v:
             raise ValueError("This field cannot be empty")
         return v
 
-    @field_validator("phone")
+    @field_validator("customer_phone")
     @classmethod
     def valid_phone(cls, v):
         if not v.isdigit() or len(v) != 10:
             raise ValueError("Phone number must be 10 digits")
         return v
 
-
-class InvoiceItem(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    description: str
-    qty: int = Field(..., gt=0, description="Quantity must be > 0")
-    price: float = Field(..., gt=0, description="Price must be > 0")
-    amount: float = Field(..., ge=0)
-    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
-    invoice: Optional[Invoice] = Relationship(back_populates="items") #many-to-one relationship with Invoice
-
-    @field_validator("description")
+    @field_validator("customer_email")
     @classmethod
-    def description_must_not_be_empty(cls, v):
-        if not v.strip():
-            raise ValueError("Item description cannot be empty")
+    def valid_email_format(cls, v):
+        if v and ("@" not in v or "." not in v):
+            raise ValueError("Invalid email format")
         return v
 
-class Customer(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str
-    address: str
-    phone: str
-    email: str = None
-    # invoices: List[Invoice] = Relationship(back_populates="customer")
+class Product(SQLModel, table=True):
+    __tablename__ = "product"
+    
+    product_id: Optional[int] = Field(default=None, primary_key=True)
+    product_description: str = Field(..., unique=True, index=True)  # Index for product searches
+    product_price: float = Field(index=True)  # Index for price-based queries
+    line_items: List["LineItem"] = Relationship(back_populates="product", sa_relationship_kwargs={"cascade": "all, delete-orphan","primaryjoin": "Product.product_id == LineItem.product_id"})
+    
+    # Index for price range queries
+    __table_args__ = (
+        Index('idx_product_price_desc', 'product_price', 'product_description'),  # Price and description search
+    )
 
-class Item(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    description: str
-    qty: int
-    price: float
-    # invoices: List[InvoiceItem] = Relationship(back_populates="item")
+    @field_validator("product_description")
+    @classmethod
+    def not_empty(cls, v):
+        if not v:
+            raise ValueError("This field cannot be empty")
+        return v
 
-#request schemas
-class InvoiceItemRequest(BaseModel):
-    description: str
-    qty: int
-    price: float
-
-class InvoiceRequest(BaseModel):
-    customer_name: str
-    address: str
-    phone: str
-    date_issued: date
-    terms: str
-    due_date: date
-    invoice_status: Optional[str] = "draft"  # Default status
-    items: list[InvoiceItemRequest]
-
-class CustomerRequest(BaseModel):
-    name: str
-    address: str
-    phone: str
-    email: Optional[str] = None
-
-class ItemRequest(BaseModel):
-    description: str
-    qty: int
-    price: float
-
-#response schemas
-class InvoiceItemMinimalResponse(BaseModel):
-    description: str
-    qty: int
-    price: float
-    amount: float
-
-class InvoiceMinimalResponse(BaseModel):
-    id: int
-    customer_name: str
-    address: str
-    phone: str
-    date_issued: date
-    due_date: date
-    terms: str
-    total: float
-    invoice_status: str
-    items: list[InvoiceItemMinimalResponse]
-
-    class Config:
-        orm_mode = True
-
-class CustomerMinimalResponse(BaseModel):
-    id: int
-    name: str
-    address: str
-    phone: str
-    email: str
-
-class ItemMinimalResponse(BaseModel):
-    id: int
-    description: str
-    qty: int
-    price: float
-    amount: float
-
-    class Config:
-        orm_mode = True
-
-
-InvoiceItem.invoice = Relationship(back_populates="items")
-Invoice.update_forward_refs() # This is to solve the circular reference between Invoice and InvoiceItem
+    @field_validator("product_price")
+    @classmethod
+    def positive_price(cls, v):
+        if v is None or v < 0:
+            raise ValueError("Price must be a positive number")
+        return v

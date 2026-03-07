@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
+from sqlalchemy.orm import selectinload, joinedload
 from database import get_session, engine
 from typing import List
 from datetime import date, timedelta
-import models
-from models import Invoice, InvoiceItem, InvoiceRequest, InvoiceItemRequest, InvoiceMinimalResponse, InvoiceItemMinimalResponse
+from models import Invoice, LineItem, Customer, Product
+from api import CustomerMinimalResponse, InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest, ProductMinimalResponse
 
 router = APIRouter()
-# Create the database tables if they don't exist when our application starts
-models.SQLModel.metadata.create_all(bind = engine)
+
 # Invoice routes
 
 
@@ -43,121 +43,203 @@ def calculate_due_date(date_issued: date, terms: str) -> date:
 #Post: Create a new invoice
 @router.post("/invoice", response_model=InvoiceMinimalResponse)
 def create_invoice(invoice_data: InvoiceRequest, session: Session = Depends(get_session)):
-    items = []
-    total = 0.0
-    for item in invoice_data.items:
-        amount = item.qty * item.price
-        total += amount
-        items.append(InvoiceItem(
-            description=item.description,
-            qty=item.qty,
-            price=item.price,
-            amount=amount
+
+    customer = session.get(Customer, invoice_data.customer_id)
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+
+    due_date = calculate_due_date(invoice_data.date_issued, invoice_data.invoice_terms)
+
+    # Calculate line items with totals
+    line_items_data = []
+    total_amount = 0.0
+
+    for item in invoice_data.line_items:
+        product = session.get(Product, item.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
+
+        line_total = item.lineitem_qty * product.product_price
+        total_amount += line_total
+
+        line_items_data.append(LineItem(
+            product_id=item.product_id,
+            lineitem_qty=item.lineitem_qty,
+            lineitem_total=line_total
         ))
-    due_date = calculate_due_date(invoice_data.date_issued, invoice_data.terms)
+
     invoice = Invoice(
-        customer_name=invoice_data.customer_name,
-        address=invoice_data.address,
-        phone=invoice_data.phone,
+        customer_id=invoice_data.customer_id,
         date_issued=invoice_data.date_issued,
-        terms=invoice_data.terms,
-        due_date=due_date,
-        total=total,
-        items=items
+        invoice_terms=invoice_data.invoice_terms,
+        invoice_due_date=due_date,
+        invoice_total=total_amount,
+        invoice_status="draft",
+        customer=customer,
+        line_items=line_items_data
     )
-    invoice.invoice_status = "submitted"
+
     session.add(invoice)
     session.commit()
     session.refresh(invoice)
 
-    # Debug: print what you're returning
-    print(f"Created Invoice: {invoice}")
-
-    # writing custom response manually:
     return InvoiceMinimalResponse(
         id=invoice.id,
-        customer_name=invoice.customer_name,
-        address=invoice.address,
-        phone=invoice.phone,
+        customer_id=invoice.customer_id,
+        customer=CustomerMinimalResponse(
+            customer_id=invoice.customer.customer_id,
+            customer_name=invoice.customer.customer_name,
+            customer_address=invoice.customer.customer_address,
+            customer_phone=invoice.customer.customer_phone,
+            customer_email=invoice.customer.customer_email,
+        ),
         date_issued=invoice.date_issued,
-        due_date=invoice.due_date,
-        terms=invoice.terms,
+        invoice_due_date=due_date,
+        invoice_terms=invoice.invoice_terms,
         invoice_status=invoice.invoice_status,
-        total=invoice.total,
-        items=[
-            InvoiceItemMinimalResponse(
-                description=item.description,
-                qty=item.qty,  # Include quantity if needed
-                price=item.price,  # Include price if needed
-                amount=item.amount
+        invoice_total=invoice.invoice_total,
+        line_items=[
+            LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
+                product_id=item.product_id,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ),
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
             )
-            for item in invoice.items
-        ]    
+            for item in invoice.line_items
+        ]
     )
 
 
-#Get: Retrieve all invoices
+
+
+#Get: Retrieve all invoices (optimized with eager loading to fix N+1 issues)
 @router.get("/invoices", response_model=List[InvoiceMinimalResponse])
 def get_all_invoices(session: Session = Depends(get_session)):
-    invoices = session.exec(select(Invoice)).all()
+    """
+    Retrieve all invoices with optimized query to prevent N+1 issues.
+
+    Uses selectinload for one-to-many relationships (line_items) and
+    joinedload for many-to-one relationships (customer, product).
+    """
+    # Optimized query with eager loading for all relationships
+    statement = (
+        select(Invoice)
+        .options(
+            # Load customer data with joinedload (many-to-one)
+            joinedload(Invoice.customer),
+            # Load line items with selectinload (one-to-many)
+            selectinload(Invoice.line_items).joinedload(LineItem.product)
+        )
+    )
+
+    invoices = session.exec(statement).unique().all()
+
+    if not invoices:
+        raise HTTPException(status_code=404, detail="No invoices found")
 
     return [
         InvoiceMinimalResponse(
             id=inv.id,
-            customer_name=inv.customer_name,
-            address=inv.address,
-            phone=inv.phone,
+            customer_id=inv.customer_id,
+            customer=CustomerMinimalResponse(
+                customer_id=inv.customer.customer_id,
+                customer_name=inv.customer.customer_name,
+                customer_address=inv.customer.customer_address,
+                customer_phone=inv.customer.customer_phone,
+                customer_email=inv.customer.customer_email
+            ),
             date_issued=inv.date_issued,
-            due_date=inv.due_date,
-            terms=inv.terms,
+            invoice_due_date=inv.invoice_due_date,
+            invoice_terms=inv.invoice_terms,
             invoice_status=inv.invoice_status,
-            total=inv.total,
-            items=[
-                InvoiceItemMinimalResponse(
-                    description=item.description,
-                    qty=item.qty,  # Include quantity if needed
-                    price=item.price,  # Include price if needed
-                    amount=item.amount
+            invoice_total=inv.invoice_total,
+            line_items=[
+                LineItemMinimalResponse(
+                    lineitem_id=item.lineitem_id,
+                    product_id=item.product_id,
+                    product=ProductMinimalResponse(
+                        product_id=item.product.product_id,
+                        product_description=item.product.product_description,
+                        product_price=item.product.product_price
+                    ) if item.product else None,
+                    lineitem_qty=item.lineitem_qty,
+                    lineitem_total=item.lineitem_total
                 )
-                for item in inv.items
+                for item in inv.line_items
             ]
         )
         for inv in invoices
     ]
 
 
-#Get: Retrieve a specific invoice by ID
+#Get: Retrieve a specific invoice by ID (optimized with eager loading)
 @router.get("/invoice/{invoice_id}", response_model=InvoiceMinimalResponse)
 def get_invoice(invoice_id: int, session: Session = Depends(get_session)):
-    invoice = session.get(Invoice, invoice_id)
-    print("Invoice ID:", invoice_id)
+    """
+    Retrieve a specific invoice with optimized query to prevent N+1 issues.
+
+    Loads customer and all line items with their product details in a single query.
+    """
+    # Optimized query with eager loading
+    statement = (
+        select(Invoice)
+        .where(Invoice.id == invoice_id)
+        .options(
+            # Load customer data with joinedload (many-to-one)
+            joinedload(Invoice.customer),
+            # Load line items with selectinload (one-to-many)
+            selectinload(Invoice.line_items).joinedload(LineItem.product)
+        )
+    )
+
+    invoice = session.exec(statement).unique().first()
+
     if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
+        max_id = session.exec(select(func.max(Invoice.id))).first() or 0
+        if invoice_id <= max_id:
+            raise HTTPException(status_code=404, detail=f"Invoice #{invoice_id} has been deleted")
+        else:
+            raise HTTPException(status_code=404, detail=f"Invoice #{invoice_id} does not exist")
 
-    response = InvoiceMinimalResponse(
+    return InvoiceMinimalResponse(
         id=invoice.id,
-        customer_name=invoice.customer_name,
-        address=invoice.address,
-        phone=invoice.phone,
+        customer_id=invoice.customer_id,
+        customer=CustomerMinimalResponse(
+            customer_id=invoice.customer.customer_id,
+            customer_name=invoice.customer.customer_name,
+            customer_address=invoice.customer.customer_address,
+            customer_phone=invoice.customer.customer_phone,
+            customer_email=invoice.customer.customer_email,
+        ),
         date_issued=invoice.date_issued,
-        due_date=invoice.due_date,
-        terms=invoice.terms,
+        invoice_due_date=invoice.invoice_due_date,
+        invoice_terms=invoice.invoice_terms,
         invoice_status=invoice.invoice_status,
-        total=invoice.total,
-        items=[
-            InvoiceItemMinimalResponse(
-                description=item.description,
-                qty=item.qty , # Include quantity if needed
-                price=item.price , # Include price if needed
-                amount=item.amount
-
+        invoice_total=invoice.invoice_total,
+        line_items=[
+            LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
+                product_id=item.product_id,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ) if item.product else None,
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
             )
-            for item in invoice.items
+            for item in invoice.line_items
         ]
     )
-    print("Response:", response)
-    return response
-    
+
+
 
 #Delete: Delete a specific invoice by ID
 @router.delete("/invoice/{invoice_id}")
@@ -169,64 +251,102 @@ def delete_invoice(invoice_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"deleted": True, "id": invoice_id, "message": "Invoice deleted successfully"}
 
-#Put: Update a specific invoice by ID
+#Put: Update a specific invoice by ID (optimized with eager loading)
 @router.put("/invoice/{invoice_id}", response_model=InvoiceMinimalResponse)
 def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Session = Depends(get_session)):
-    # invoice_db = session.get(Invoice, invoice_id).with_for_update()  # Lock the row for update
-    # Use select() with for_update() instead of session.get()
-    statement = select(Invoice).where(Invoice.id == invoice_id).with_for_update()
-    invoice_db = session.exec(statement).first()
+    """
+    Update an existing invoice with optimized database queries.
+
+    Uses eager loading to prevent N+1 issues when returning the updated invoice.
+    """
+    # Get invoice with relationships loaded for efficient updates
+    statement = (
+        select(Invoice)
+        .where(Invoice.id == invoice_id)
+        .options(
+            selectinload(Invoice.line_items),
+            joinedload(Invoice.customer)
+        )
+        .with_for_update()
+    )
+    invoice_db = session.exec(statement).unique().first()
 
     if not invoice_db:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-   
-    # Update fields
-    invoice_db.customer_name = updated_invoice.customer_name
-    invoice_db.address = updated_invoice.address
-    invoice_db.phone = updated_invoice.phone
+    # Verify customer exists (if changed)
+    if invoice_db.customer_id != updated_invoice.customer_id:
+        customer = session.get(Customer, updated_invoice.customer_id)
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+    # Update invoice fields (matching actual Invoice model)
+    invoice_db.customer_id = updated_invoice.customer_id
     invoice_db.date_issued = updated_invoice.date_issued
-    invoice_db.terms = updated_invoice.terms
-    invoice_db.due_date = calculate_due_date(updated_invoice.date_issued, updated_invoice.terms)
-    invoice_db.invoice_status = "draft"
+    invoice_db.invoice_terms = updated_invoice.invoice_terms
+    invoice_db.invoice_due_date = calculate_due_date(updated_invoice.date_issued, updated_invoice.invoice_terms)
+    invoice_db.invoice_status = updated_invoice.invoice_status or "draft"
+    invoice_db.invoice_total = updated_invoice.invoice_total
 
+    # Clear old line items and add new ones
+    invoice_db.line_items.clear()
 
-    # Clear old items and add new ones
-    invoice_db.items.clear()
-    total = 0.0
-    for item_data in updated_invoice.items:
-        amount = item_data.qty * item_data.price
-        total += amount
-        invoice_db.items.append(InvoiceItem(
-            description=item_data.description,
-            qty=item_data.qty,
-            price=item_data.price,
-            amount=amount
-        ))
+    for item_data in updated_invoice.line_items:
+        product = session.get(Product, item_data.product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item_data.product_id} not found")
 
-    invoice_db.total = total
-    
+        line_total = item_data.lineitem_qty * product.product_price
+
+        new_item = LineItem(
+            product_id=item_data.product_id,
+            lineitem_qty=item_data.lineitem_qty,
+            lineitem_total=line_total
+        )
+        invoice_db.line_items.append(new_item)
+
     session.add(invoice_db)
     session.commit()
     session.refresh(invoice_db)
 
+    # Reload with relationships to ensure we have fresh data including line item products
+    statement = (
+        select(Invoice)
+        .where(Invoice.id == invoice_id)
+        .options(
+            joinedload(Invoice.customer),
+            selectinload(Invoice.line_items).joinedload(LineItem.product)
+        )
+    )
+    updated_invoice_db = session.exec(statement).unique().first()
+
     return InvoiceMinimalResponse(
-        id=invoice_db.id,
-        customer_name=invoice_db.customer_name,
-        address=invoice_db.address,
-        phone=invoice_db.phone,
-        date_issued=invoice_db.date_issued,
-        due_date=invoice_db.due_date,
-        invoice_status=invoice_db.invoice_status,
-        terms=invoice_db.terms,
-        total=invoice_db.total,
-        items=[
-            InvoiceItemMinimalResponse(
-                description=item.description,
-                qty=item.qty , # Include quantity if needed
-                price=item.price , # Include price if needed
-                amount=item.amount
+        id=updated_invoice_db.id,
+        customer_id=updated_invoice_db.customer_id,
+        customer=CustomerMinimalResponse(
+            customer_id=updated_invoice_db.customer.customer_id,
+            customer_name=updated_invoice_db.customer.customer_name,
+            customer_address=updated_invoice_db.customer.customer_address,
+            customer_phone=updated_invoice_db.customer.customer_phone,
+            customer_email=updated_invoice_db.customer.customer_email,
+        ),
+        date_issued=updated_invoice_db.date_issued,
+        invoice_due_date=updated_invoice_db.invoice_due_date,
+        invoice_terms=updated_invoice_db.invoice_terms,
+        invoice_status=updated_invoice_db.invoice_status,
+        invoice_total=updated_invoice_db.invoice_total,
+        line_items=[
+            LineItemMinimalResponse(
+                lineitem_id=item.lineitem_id,
+                product_id=item.product_id,
+                product=ProductMinimalResponse(
+                    product_id=item.product.product_id,
+                    product_description=item.product.product_description,
+                    product_price=item.product.product_price
+                ) if item.product else None,
+                lineitem_qty=item.lineitem_qty,
+                lineitem_total=item.lineitem_total
             )
-            for item in invoice_db.items
+            for item in updated_invoice_db.line_items
         ]
     )

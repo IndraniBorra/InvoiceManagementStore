@@ -1,15 +1,19 @@
+import os
 from sqlmodel import SQLModel, create_engine, Session
 
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+if DATABASE_URL:
+    # Production: PostgreSQL on RDS
+    # Requires: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require
+    connect_args = {"sslmode": "require"} if "postgresql" in DATABASE_URL else {}
+    engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
+else:
+    # Local development: SQLite fallback
+    engine = create_engine("sqlite:///database.db", echo=True)
 
-# postgres_url = "postgresql://1bfc85d008b0720bce3a7c5d1ad4af68144e9d12fe2671104496e8c082f6dd16:sk_AVzi1er3NSeMQX6pqGDji@db.prisma.io:5432/?sslmode=require"
-
-engine = create_engine(sqlite_url, echo=True)
 
 def create_db_and_tables():
-
     SQLModel.metadata.create_all(engine, checkfirst=True)
 
 

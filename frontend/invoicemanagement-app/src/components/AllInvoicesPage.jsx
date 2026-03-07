@@ -1,18 +1,19 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import api from '../api'; // Making sure this points to my axios setup
+import { apiClient } from '../services/api'; // Modern API client
 import '../App.css';
 
 
 const AllInvoicesPage = () => {
-  
+
   const [invoices, setInvoices] = useState([]);
 
   const fetchInvoices = async () => {
     try {
-      const response = await api.get('/invoices');
+      const response = await apiClient.get('/invoices');
       // console.log('Fetched Invoices:', response.data);
       setInvoices(response.data);
+      console.log('Invoices set:', response.data);
     } catch (error) {
       console.error('Failed to fetch invoices', error);
     }
@@ -44,18 +45,18 @@ const AllInvoicesPage = () => {
           {invoices.map((invoice) => (
             <tr key={invoice.id}>
               <td>{invoice.id}</td>
-              <td>{invoice.customer_name}</td>
-              <td>{invoice.phone}</td>
-              <td>{invoice.address}</td>
+              <td>{invoice.customer?.customer_name || 'N/A'}</td>
+              <td>{invoice.customer?.customer_phone || 'N/A'}</td>
+              <td>{invoice.customer?.customer_address || 'N/A'}</td>
               <td>{invoice.date_issued}</td>
-              <td>${invoice.total}</td>
+              <td>${invoice.invoice_total}</td>
               <td>
                 <ul>
-                  {invoice.items.map((item, idx) => (
+                  {invoice.line_items?.map((item, idx) => (
                     <li key={idx}>
-                      {item.description}: ${item.amount}
+                      {item.product?.product_description || `Product #${item.product_id}`}: ${item.lineitem_total}
                     </li>
-                  ))}
+                  )) || <li>No items</li>}
                 </ul>
               </td>
               <td>

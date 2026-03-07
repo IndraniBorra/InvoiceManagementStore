@@ -1,5 +1,3 @@
-# Remove the echo commands and add proper patterns
-cat > .gitignore << 'EOF'
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -20,6 +18,7 @@ build/
 
 # misc
 .DS_Store
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -45,3 +44,17 @@ __pycache__/
 *.csv
 *.key
 *.pem
+
+# Large ML model files
+*.onnx
+*.bin
+*.h5
+*.model
+
+# ML Models - too large for git
+frontend/invoicemanagement-app/public/models/*.onnx
+frontend/invoicemanagement-app/public/models/*/*.onnx
+
+# Python virtualenv
+.venv/
+venv/

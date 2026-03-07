@@ -1,0 +1,84 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [forecasting]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+jobs:
+  deploy:
+    name: Build and deploy to S3 + CloudFront
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/invoicemanagement-app/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install dependencies
+        working-directory: frontend/invoicemanagement-app
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend/invoicemanagement-app
+        env:
+          # Set this in GitHub Secrets after first backend deploy
+          # Format: https://{api-id}.execute-api.us-east-1.amazonaws.com/dev
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          CI: false   # Don't treat warnings as errors
+        run: npm run build
+
+      - name: Create S3 bucket if not exists
+        env:
+          FRONTEND_S3_BUCKET: ${{ secrets.FRONTEND_S3_BUCKET }}
+        run: |
+          BUCKET=${FRONTEND_S3_BUCKET:-smartinvoice-dev-frontend}
+          echo "FRONTEND_S3_BUCKET=${BUCKET}" >> $GITHUB_ENV
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "Creating bucket: $BUCKET"
+            aws s3api create-bucket --bucket "$BUCKET" --region us-east-1
+            aws s3api put-public-access-block --bucket "$BUCKET" \
+              --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+            aws s3api put-bucket-versioning --bucket "$BUCKET" \
+              --versioning-configuration Status=Enabled
+          else
+            echo "Bucket already exists: $BUCKET"
+          fi
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync frontend/invoicemanagement-app/build/ s3://$FRONTEND_S3_BUCKET/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "*.json"
+          # index.html and JSON must not be cached (React Router + manifest)
+          aws s3 sync frontend/invoicemanagement-app/build/ s3://$FRONTEND_S3_BUCKET/ \
+            --exclude "*" \
+            --include "index.html" \
+            --include "*.json" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        if: ${{ env.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+            --paths "/*"

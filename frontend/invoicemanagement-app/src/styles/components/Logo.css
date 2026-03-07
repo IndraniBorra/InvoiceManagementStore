@@ -1,0 +1,232 @@
+/* Logo Component Styles */
+
+/* Base Logo Styles */
+.logo {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  transition: all var(--transition-base);
+}
+
+/* Size Variants */
+.logo-xs {
+  max-width: 32px;
+  height: auto;
+}
+
+.logo-sm {
+  max-width: 64px;
+  height: auto;
+}
+
+.logo-md {
+  max-width: 120px;
+  height: auto;
+}
+
+.logo-lg {
+  max-width: 180px;
+  height: auto;
+}
+
+.logo-xl {
+  max-width: 240px;
+  height: auto;
+}
+
+/* Interactive States */
+.logo-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xs);
+}
+
+.logo-clickable:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.logo-clickable:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.logo-clickable:active {
+  transform: scale(0.98);
+}
+
+/* Loading State */
+.logo-loading {
+  opacity: 0.7;
+  animation: logo-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes logo-pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Error/Fallback Styles */
+.logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: var(--color-white);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.logo-fallback-text {
+  font-size: calc(var(--font-size-base) * 0.8);
+  white-space: nowrap;
+}
+
+.logo-fallback.logo-xs .logo-fallback-text {
+  font-size: var(--font-size-xs);
+}
+
+.logo-fallback.logo-sm .logo-fallback-text {
+  font-size: var(--font-size-sm);
+}
+
+.logo-fallback.logo-md .logo-fallback-text {
+  font-size: var(--font-size-lg);
+}
+
+.logo-fallback.logo-lg .logo-fallback-text {
+  font-size: var(--font-size-xl);
+}
+
+.logo-fallback.logo-xl .logo-fallback-text {
+  font-size: var(--font-size-2xl);
+}
+
+/* Specific Context Styles */
+
+/* Invoice Logo Styles */
+.invoice-logo {
+  margin-bottom: var(--spacing-md);
+  border-radius: var(--radius-md);
+}
+
+/* Header Logo Styles */
+.header-logo {
+  margin-right: var(--spacing-md);
+}
+
+/* Report Logo Styles */
+.report-logo {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Print Styles */
+@media print {
+  .logo {
+    max-width: 100px !important;
+    height: auto !important;
+    margin-bottom: 10px;
+    filter: grayscale(100%) contrast(120%);
+  }
+  
+  .logo-fallback {
+    background: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ccc !important;
+  }
+  
+  .logo-clickable {
+    cursor: default;
+    padding: 0;
+  }
+  
+  .logo-clickable:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .logo-lg {
+    max-width: 120px;
+  }
+  
+  .logo-xl {
+    max-width: 150px;
+  }
+  
+  .invoice-logo {
+    max-width: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-md {
+    max-width: 80px;
+  }
+  
+  .logo-lg {
+    max-width: 100px;
+  }
+  
+  .logo-xl {
+    max-width: 120px;
+  }
+  
+  .invoice-logo {
+    max-width: 80px;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .logo {
+    border: 2px solid var(--color-gray-800);
+    border-radius: var(--radius-sm);
+  }
+  
+  .logo-fallback {
+    border: 3px solid var(--color-gray-800) !important;
+  }
+  
+  .logo-clickable:focus {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+}
+
+/* Dark Theme Support */
+@media (prefers-color-scheme: dark) {
+  .logo {
+    filter: brightness(0.9);
+  }
+  
+  .logo-fallback {
+    background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .logo {
+    transition: none;
+  }
+  
+  .logo-clickable:hover {
+    transform: none;
+  }
+  
+  .logo-loading {
+    animation: none;
+    opacity: 0.7;
+  }
+}

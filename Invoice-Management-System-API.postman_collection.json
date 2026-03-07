@@ -1,0 +1,1200 @@
+{
+  "info": {
+    "name": "Invoice Management System API v2.0",
+    "description": "Enterprise-grade API collection for testing the Invoice Management System. Includes comprehensive security, monitoring, and business functionality tests.\n\n## Features Tested\n- **Phase 1**: Core business functionality (invoices, customers, products)\n- **Phase 2**: Security (XSS/SQL injection protection, rate limiting)\n- **Phase 2**: Monitoring (health checks, metrics, performance)\n- **Phase 2**: Error handling (standardized responses, validation)\n\n## Environment Setup\nCreate environment with:\n- `base_url`: http://localhost:8000\n- `test_customer_id`: 1\n- `test_product_id`: 1\n- `security_test_enabled`: true\n- `monitoring_enabled`: true\n\n## Security Testing\n- XSS protection validation\n- SQL injection detection\n- Input validation testing\n- Security headers verification\n- Rate limiting validation\n\n## Performance Testing\n- N+1 query optimization validation\n- Response time monitoring\n- Database performance metrics\n- System resource monitoring",
+    "_postman_id": "invoice-management-api-v2",
+    "version": "2.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Invoice Endpoints",
+      "description": "All invoice-related operations - tested and validated",
+      "item": [
+        {
+          "name": "Create Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has invoice ID', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('created_invoice_id', jsonData.id);",
+                  "});",
+                  "",
+                  "pm.test('LineItem created correctly', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.line_items).to.be.an('array');",
+                  "    pm.expect(jsonData.line_items[0]).to.have.property('product_id');",
+                  "    pm.expect(jsonData.line_items[0]).to.have.property('lineitem_qty');",
+                  "    pm.expect(jsonData.line_items[0]).to.have.property('lineitem_total');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": {{test_customer_id}},\n  \"customer_name\": \"Test Customer\",\n  \"customer_address\": \"123 Test St\",\n  \"customer_phone\": \"1234567890\",\n  \"date_issued\": \"2025-01-15\",\n  \"invoice_terms\": \"Net 30\",\n  \"invoice_due_date\": \"2025-02-14\",\n  \"invoice_status\": \"draft\",\n  \"invoice_total\": 150.00,\n  \"line_items\": [{\n    \"product_id\": {{test_product_id}},\n    \"product_description\": \"Test Product\",\n    \"line_items_qty\": 2,\n    \"product_price\": 75.00,\n    \"line_items_total\": 150.00\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Creates a new invoice with line items. Tests the fix for LineItem creation data consistency."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customer_id\": 1,\n  \"customer_name\": \"Test Customer\",\n  \"customer_address\": \"123 Test St\",\n  \"customer_phone\": \"1234567890\",\n  \"date_issued\": \"2025-01-15\",\n  \"invoice_terms\": \"Net 30\",\n  \"invoice_due_date\": \"2025-02-14\",\n  \"invoice_status\": \"draft\",\n  \"invoice_total\": 150.00,\n  \"line_items\": [{\n    \"product_id\": 1,\n    \"product_description\": \"Test Product\",\n    \"line_items_qty\": 2,\n    \"product_price\": 75.00,\n    \"line_items_total\": 150.00\n  }]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/invoice",
+                  "host": ["{{base_url}}"],
+                  "path": ["invoice"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {"key": "Content-Type", "value": "application/json"}
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 882,\n  \"customer_name\": \"Rodriguez, Figueroa and Sanchez Manufacturing Co\",\n  \"customer_address\": \"819 Johnson Course, East William, AK 74064\",\n  \"customer_phone\": \"0433218196\",\n  \"date_issued\": \"2025-01-15\",\n  \"invoice_due_date\": \"2025-02-14\",\n  \"invoice_terms\": \"Net 30\",\n  \"invoice_total\": 150.0,\n  \"invoice_status\": \"submitted\",\n  \"line_items\": [{\n    \"product_id\": 1,\n    \"lineitem_qty\": 2,\n    \"lineitem_total\": 150.0,\n    \"product_description\": \"Wireless Bluetooth Headphones\",\n    \"product_price\": 141.02\n  }]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Invoice (Valid ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has required fields', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('customer_name');",
+                  "    pm.expect(jsonData).to.have.property('invoice_total');",
+                  "    pm.expect(jsonData).to.have.property('line_items');",
+                  "});",
+                  "",
+                  "pm.test('Line items have product relationships', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.line_items.length > 0) {",
+                  "        pm.expect(jsonData.line_items[0]).to.have.property('product_description');",
+                  "        pm.expect(jsonData.line_items[0]).to.have.property('product_price');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoice/{{created_invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["invoice", "{{created_invoice_id}}"]
+            },
+            "description": "Retrieves a specific invoice by ID. Tests the null check fix to ensure proper responses."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice (Invalid ID - 404 Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Error message is correct', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('detail');",
+                  "    pm.expect(jsonData.detail).to.eql('Invoice not found');",
+                  "});",
+                  "",
+                  "pm.test('No server crash (not 500 error)', function () {",
+                  "    pm.expect(pm.response.code).to.not.eql(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoice/99999",
+              "host": ["{{base_url}}"],
+              "path": ["invoice", "99999"]
+            },
+            "description": "Tests error handling for non-existent invoice. Should return 404, not crash with 500."
+          },
+          "response": [
+            {
+              "name": "404 Not Found Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/invoice/99999",
+                  "host": ["{{base_url}}"],
+                  "path": ["invoice", "99999"]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Invoice not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Invoice updated correctly', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.invoice_terms).to.eql('Net 15');",
+                  "    pm.expect(jsonData.date_issued).to.eql('2025-01-16');",
+                  "});",
+                  "",
+                  "pm.test('Due date recalculated', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.invoice_due_date).to.eql('2025-01-31');",
+                  "});",
+                  "",
+                  "pm.test('Line items updated', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.line_items[0].product_id).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": {{test_customer_id}},\n  \"customer_name\": \"Updated Customer\",\n  \"customer_address\": \"456 Updated St\",\n  \"customer_phone\": \"9876543210\",\n  \"date_issued\": \"2025-01-16\",\n  \"invoice_terms\": \"Net 15\",\n  \"invoice_due_date\": \"2025-01-31\",\n  \"invoice_status\": \"submitted\",\n  \"invoice_total\": 200.00,\n  \"line_items\": [{\n    \"product_id\": 2,\n    \"product_description\": \"Updated Product\",\n    \"line_items_qty\": 1,\n    \"product_price\": 200.00,\n    \"line_items_total\": 200.00\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice/{{created_invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["invoice", "{{created_invoice_id}}"]
+            },
+            "description": "Updates an existing invoice. Tests the major field mapping fix for the PUT endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Invoices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Invoices have required structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('id');",
+                  "        pm.expect(jsonData[0]).to.have.property('customer_name');",
+                  "        pm.expect(jsonData[0]).to.have.property('line_items');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"]
+            },
+            "description": "Retrieves all invoices. Note: This endpoint may have N+1 query issues with large datasets."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Delete response correct', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('deleted');",
+                  "    pm.expect(jsonData.deleted).to.eql(true);",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invoice/{{created_invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["invoice", "{{created_invoice_id}}"]
+            },
+            "description": "Deletes an invoice by ID. Use with caution as this is permanent."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Customer Endpoints",
+      "description": "Customer management operations",
+      "item": [
+        {
+          "name": "Create Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Customer created with ID', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('customer_id');",
+                  "    pm.environment.set('created_customer_id', jsonData.customer_id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Test Customer API\",\n  \"customer_address\": \"123 API Test Street\",\n  \"customer_phone\": \"5551234567\",\n  \"customer_email\": \"test@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/customer",
+              "host": ["{{base_url}}"],
+              "path": ["customer"]
+            },
+            "description": "Creates a new customer"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Customers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/customers",
+              "host": ["{{base_url}}"],
+              "path": ["customers"]
+            },
+            "description": "Retrieves all customers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Customer has required fields', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('customer_id');",
+                  "    pm.expect(jsonData).to.have.property('customer_name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/customer/{{test_customer_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["customer", "{{test_customer_id}}"]
+            },
+            "description": "Retrieves a specific customer by ID"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Product Endpoints",
+      "description": "Product management operations",
+      "item": [
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Product created with ID', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('product_id');",
+                  "    pm.environment.set('created_product_id', jsonData.product_id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_description\": \"Test Product API\",\n  \"product_price\": 99.99\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/product",
+              "host": ["{{base_url}}"],
+              "path": ["product"]
+            },
+            "description": "Creates a new product"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is an array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": ["{{base_url}}"],
+              "path": ["products"]
+            },
+            "description": "Retrieves all products"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Testing & Validation",
+      "description": "Special test requests for validation and debugging",
+      "item": [
+        {
+          "name": "CORS Preflight Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('CORS headers present', function () {",
+                  "    pm.expect(pm.response.headers.get('access-control-allow-origin')).to.eql('http://localhost:3000');",
+                  "    pm.expect(pm.response.headers.get('access-control-allow-methods')).to.include('POST');",
+                  "    pm.expect(pm.response.headers.get('access-control-max-age')).to.eql('600');",
+                  "});",
+                  "",
+                  "pm.test('Restricted headers (no wildcards)', function () {",
+                  "    var allowedHeaders = pm.response.headers.get('access-control-allow-headers');",
+                  "    pm.expect(allowedHeaders).to.not.include('*');",
+                  "    pm.expect(allowedHeaders).to.include('Content-Type');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "http://localhost:3000"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "Content-Type"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Tests CORS preflight configuration to ensure security settings are correct"
+          },
+          "response": [
+            {
+              "name": "CORS Success Response",
+              "originalRequest": {
+                "method": "OPTIONS",
+                "header": [
+                  {"key": "Origin", "value": "http://localhost:3000"},
+                  {"key": "Access-Control-Request-Method", "value": "POST"},
+                  {"key": "Access-Control-Request-Headers", "value": "Content-Type"}
+                ]
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "plain",
+              "header": [
+                {"key": "access-control-allow-methods", "value": "GET, POST, PUT, DELETE, OPTIONS"},
+                {"key": "access-control-max-age", "value": "600"},
+                {"key": "access-control-allow-headers", "value": "Accept, Accept-Language, Authorization, Content-Language, Content-Type"},
+                {"key": "access-control-allow-credentials", "value": "true"},
+                {"key": "access-control-allow-origin", "value": "http://localhost:3000"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Due Date Calculation Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Due date calculated correctly (Net 30)', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    // Issue: 2025-01-15, Net 30 should be 2025-02-14",
+                  "    pm.expect(jsonData.invoice_due_date).to.eql('2025-02-14');",
+                  "});",
+                  "",
+                  "pm.test('Terms and dates consistent', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.date_issued).to.eql('2025-01-15');",
+                  "    pm.expect(jsonData.invoice_terms).to.eql('Net 30');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": {{test_customer_id}},\n  \"customer_name\": \"Due Date Test\",\n  \"customer_address\": \"Test Address\",\n  \"customer_phone\": \"1234567890\",\n  \"date_issued\": \"2025-01-15\",\n  \"invoice_terms\": \"Net 30\",\n  \"invoice_due_date\": \"2025-02-14\",\n  \"invoice_status\": \"draft\",\n  \"invoice_total\": 100.00,\n  \"line_items\": [{\n    \"product_id\": {{test_product_id}},\n    \"product_description\": \"Test Product\",\n    \"line_items_qty\": 1,\n    \"product_price\": 100.00,\n    \"line_items_total\": 100.00\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Validates that due date calculation is consistent between frontend and backend. Net 30 from 2025-01-15 should equal 2025-02-14."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Security & Validation Tests",
+      "description": "Phase 2 security testing - validates XSS protection, SQL injection detection, and input validation",
+      "item": [
+        {
+          "name": "XSS Protection Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 (blocked)', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('XSS attack detected', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    pm.expect(jsonData.error.message).to.include('XSS attack detected');",
+                  "});",
+                  "",
+                  "pm.test('Request tracking present', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error).to.have.property('request_id');",
+                  "    pm.expect(jsonData.error).to.have.property('timestamp');",
+                  "});",
+                  "",
+                  "pm.test('Security middleware working', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.request_path).to.eql('/invoice');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"customer_name\\\": \\\"<script>alert('xss')</script>\\\",\\n  \\\"customer_id\\\": {{test_customer_id}},\\n  \\\"customer_address\\\": \\\"Test Address\\\",\\n  \\\"customer_phone\\\": \\\"1234567890\\\",\\n  \\\"date_issued\\\": \\\"2025-01-15\\\",\\n  \\\"invoice_terms\\\": \\\"Net 30\\\",\\n  \\\"invoice_status\\\": \\\"draft\\\",\\n  \\\"invoice_total\\\": 100.00,\\n  \\\"line_items\\\": [{\\n    \\\"product_id\\\": {{test_product_id}},\\n    \\\"product_description\\\": \\\"Test Product\\\",\\n    \\\"line_items_qty\\\": 1,\\n    \\\"product_price\\\": 100.00,\\n    \\\"line_items_total\\\": 100.00\\n  }]\\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Tests XSS protection by attempting to inject script tags. Should be blocked with 400 status."
+          },
+          "response": [
+            {
+              "name": "XSS Blocked Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\\n  \\\"customer_name\\\": \\\"<script>alert('xss')</script>\\\",\\n  \\\"customer_id\\\": 1\\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\\n  \\\"error\\\": {\\n    \\\"code\\\": \\\"VALIDATION_ERROR\\\",\\n    \\\"message\\\": \\\"Potential XSS attack detected in field 'customer_name'\\\",\\n    \\\"timestamp\\\": \\\"2025-09-06T06:32:51.891165Z\\\",\\n    \\\"request_path\\\": \\\"/invoice\\\"\\n  }\\n}"
+            }
+          ]
+        },
+        {
+          "name": "SQL Injection Protection Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 (blocked)', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('SQL injection detected', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    pm.expect(jsonData.error.message).to.include('SQL injection detected');",
+                  "});",
+                  "",
+                  "pm.test('Security patterns blocked', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.message).to.include('customer_name');",
+                  "});",
+                  "",
+                  "pm.test('Error response format', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error).to.have.property('code');",
+                  "    pm.expect(jsonData.error).to.have.property('message');",
+                  "    pm.expect(jsonData.error).to.have.property('timestamp');",
+                  "    pm.expect(jsonData.error).to.have.property('request_path');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\n  \\\"customer_name\\\": \\\"Test'; DROP TABLE invoices; --\\\",\\n  \\\"customer_id\\\": {{test_customer_id}},\\n  \\\"customer_address\\\": \\\"Test Address\\\",\\n  \\\"customer_phone\\\": \\\"1234567890\\\",\\n  \\\"date_issued\\\": \\\"2025-01-15\\\",\\n  \\\"invoice_terms\\\": \\\"Net 30\\\",\\n  \\\"invoice_status\\\": \\\"draft\\\",\\n  \\\"invoice_total\\\": 100.00,\\n  \\\"line_items\\\": [{\\n    \\\"product_id\\\": {{test_product_id}},\\n    \\\"product_description\\\": \\\"Test Product\\\",\\n    \\\"line_items_qty\\\": 1,\\n    \\\"product_price\\\": 100.00,\\n    \\\"line_items_total\\\": 100.00\\n  }]\\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Tests SQL injection protection by attempting to inject DROP TABLE statement. Should be blocked with 400 status."
+          },
+          "response": [
+            {
+              "name": "SQL Injection Blocked Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\\n  \\\"customer_name\\\": \\\"Test'; DROP TABLE invoices; --\\\",\\n  \\\"customer_id\\\": 1\\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\\n  \\\"error\\\": {\\n    \\\"code\\\": \\\"VALIDATION_ERROR\\\",\\n    \\\"message\\\": \\\"Potential SQL injection detected in field 'customer_name'\\\",\\n    \\\"timestamp\\\": \\\"2025-09-06T06:33:05.177327Z\\\",\\n    \\\"request_path\\\": \\\"/invoice\\\"\\n  }\\n}"
+            }
+          ]
+        },
+        {
+          "name": "Invalid JSON Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 (invalid JSON)', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('JSON validation error', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql('VALIDATION_ERROR');",
+                  "    pm.expect(jsonData.error.message).to.include('Invalid JSON format');",
+                  "});",
+                  "",
+                  "pm.test('Detailed error information', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.message).to.include('Expecting value');",
+                  "});",
+                  "",
+                  "pm.test('Input validation middleware working', function () {",
+                  "    pm.expect(pm.response.headers.get('x-request-id')).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\\\"invalid\\\": json}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["invoice"]
+            },
+            "description": "Tests JSON validation by sending malformed JSON. Should be caught by input validation middleware."
+          },
+          "response": [
+            {
+              "name": "Invalid JSON Response",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\\\"invalid\\\": json}"
+                }
+              },
+              "status": "Bad Request", 
+              "code": 400,
+              "body": "{\\n  \\\"error\\\": {\\n    \\\"code\\\": \\\"VALIDATION_ERROR\\\",\\n    \\\"message\\\": \\\"Invalid JSON format: Expecting value: line 1 column 13 (char 12)\\\",\\n    \\\"timestamp\\\": \\\"2025-09-06T06:33:38.408639Z\\\",\\n    \\\"request_path\\\": \\\"/invoice\\\"\\n  }\\n}"
+            }
+          ]
+        },
+        {
+          "name": "Security Headers Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Security headers present', function () {",
+                  "    pm.expect(pm.response.headers.get('x-content-type-options')).to.eql('nosniff');",
+                  "    pm.expect(pm.response.headers.get('x-frame-options')).to.eql('DENY');",
+                  "    pm.expect(pm.response.headers.get('x-xss-protection')).to.include('1; mode=block');",
+                  "    pm.expect(pm.response.headers.get('strict-transport-security')).to.include('max-age=31536000');",
+                  "});",
+                  "",
+                  "pm.test('Rate limit headers present', function () {",
+                  "    pm.expect(pm.response.headers.get('x-ratelimit-limit')).to.not.be.null;",
+                  "    pm.expect(pm.response.headers.get('x-ratelimit-remaining')).to.not.be.null;",
+                  "    pm.expect(pm.response.headers.get('x-ratelimit-reset')).to.not.be.null;",
+                  "});",
+                  "",
+                  "pm.test('Request tracking headers', function () {",
+                  "    pm.expect(pm.response.headers.get('x-request-id')).to.not.be.null;",
+                  "    pm.expect(pm.response.headers.get('x-response-time')).to.not.be.null;",
+                  "});",
+                  "",
+                  "pm.test('Content security headers', function () {",
+                  "    pm.expect(pm.response.headers.get('referrer-policy')).to.not.be.null;",
+                  "    pm.expect(pm.response.headers.get('content-security-policy')).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Tests that all required security headers are present in responses. Validates Phase 2 security middleware."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "System Health & Monitoring",
+      "description": "Phase 2 monitoring endpoints - health checks, metrics, and performance monitoring",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response time under 100ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(100);",
+                  "});",
+                  "",
+                  "pm.test('Health status healthy', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "    pm.expect(jsonData.service).to.eql('Invoice Management System');",
+                  "    pm.expect(jsonData.version).to.eql('2.0.0');",
+                  "});",
+                  "",
+                  "pm.test('Timestamp format valid', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.timestamp).to.match(/\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z/);",
+                  "});",
+                  "",
+                  "pm.test('Request tracking enabled', function () {",
+                  "    pm.expect(pm.response.headers.get('x-request-id')).to.not.be.null;",
+                  "    pm.expect(pm.response.headers.get('x-response-time')).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check for load balancers and monitoring systems. Fast response with service info."
+          },
+          "response": [
+            {
+              "name": "Healthy Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/health",
+                  "host": ["{{base_url}}"],
+                  "path": ["health"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": "{\\n  \\\"status\\\": \\\"healthy\\\",\\n  \\\"timestamp\\\": \\\"2025-09-06T06:31:37.053609Z\\\",\\n  \\\"service\\\": \\\"Invoice Management System\\\",\\n  \\\"version\\\": \\\"2.0.0\\\"\\n}"
+            }
+          ]
+        },
+        {
+          "name": "Detailed Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Database health check', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.checks.database.status).to.eql('healthy');",
+                  "    pm.expect(jsonData.checks.database.response_time_ms).to.be.below(50);",
+                  "});",
+                  "",
+                  "pm.test('System resources check', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.checks.system_resources.status).to.eql('healthy');",
+                  "    pm.expect(jsonData.checks.system_resources.cpu_usage_percent).to.be.below(95);",
+                  "    pm.expect(jsonData.checks.system_resources.memory_usage_percent).to.be.below(95);",
+                  "});",
+                  "",
+                  "pm.test('Application components check', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.checks.application.status).to.eql('healthy');",
+                  "    pm.expect(jsonData.checks.application.data_status.invoices_available).to.be.true;",
+                  "    pm.expect(jsonData.checks.application.data_status.customers_available).to.be.true;",
+                  "    pm.expect(jsonData.checks.application.data_status.products_available).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Overall status healthy', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/detailed",
+              "host": ["{{base_url}}"],
+              "path": ["health", "detailed"]
+            },
+            "description": "Comprehensive health check including database connectivity, system resources, and application status."
+          },
+          "response": []
+        },
+        {
+          "name": "Database Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Database connectivity healthy', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "    pm.expect(jsonData.database.connectivity).to.eql('healthy');",
+                  "});",
+                  "",
+                  "pm.test('Query performance acceptable', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.database.basic_query_ms).to.be.below(20);",
+                  "    pm.expect(jsonData.database.table_query_ms).to.be.below(20);",
+                  "});",
+                  "",
+                  "pm.test('Database version info', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.database.version).to.not.be.null;",
+                  "    pm.expect(jsonData.database.total_invoices).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET", 
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/database",
+              "host": ["{{base_url}}"],
+              "path": ["health", "database"]
+            },
+            "description": "Focused database health check with connection and performance metrics."
+          },
+          "response": []
+        },
+        {
+          "name": "System Metrics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Business metrics present', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.business_metrics.invoices.total).to.be.a('number');",
+                  "    pm.expect(jsonData.business_metrics.customers.total).to.be.a('number');",
+                  "    pm.expect(jsonData.business_metrics.products.total).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('Performance metrics present', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.performance_metrics.query_response_time_ms).to.be.below(50);",
+                  "    pm.expect(jsonData.performance_metrics.cpu_usage_percent).to.be.below(95);",
+                  "    pm.expect(jsonData.performance_metrics.memory_usage_percent).to.be.below(95);",
+                  "});",
+                  "",
+                  "pm.test('Data validation', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.business_metrics.invoices.total).to.be.above(0);",
+                  "    pm.expect(jsonData.business_metrics.invoices.draft + jsonData.business_metrics.invoices.submitted).to.be.at.most(jsonData.business_metrics.invoices.total);",
+                  "});",
+                  "",
+                  "pm.test('Recent activity tracking', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.business_metrics.invoices.recent_7_days).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metrics",
+              "host": ["{{base_url}}"],
+              "path": ["metrics"]
+            },
+            "description": "Comprehensive system metrics including business KPIs and performance data for monitoring systems."
+          },
+          "response": []
+        },
+        {
+          "name": "Application Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Service information', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.service).to.eql('Invoice Management System');",
+                  "    pm.expect(jsonData.version).to.eql('2.0.0');",
+                  "    pm.expect(jsonData.status).to.eql('running');",
+                  "});",
+                  "",
+                  "pm.test('Feature list present', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.features).to.be.an('array');",
+                  "    pm.expect(jsonData.features).to.include('Invoice Management');",
+                  "    pm.expect(jsonData.features).to.include('Input Validation');",
+                  "    pm.expect(jsonData.features).to.include('Rate Limiting');",
+                  "});",
+                  "",
+                  "pm.test('Endpoint directory', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.endpoints.health).to.eql('/health');",
+                  "    pm.expect(jsonData.endpoints.metrics).to.eql('/metrics');",
+                  "    pm.expect(jsonData.endpoints.api_docs).to.eql('/docs');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["status"]
+            },
+            "description": "Application status and feature discovery endpoint for service registries."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Collection-level pre-request script",
+          "// Set default environment variables if not already set",
+          "if (!pm.environment.get('base_url')) {",
+          "    pm.environment.set('base_url', 'http://localhost:8000');",
+          "}",
+          "if (!pm.environment.get('test_customer_id')) {",
+          "    pm.environment.set('test_customer_id', '1');",
+          "}",
+          "if (!pm.environment.get('test_product_id')) {",
+          "    pm.environment.set('test_product_id', '1');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Base URL for the Invoice Management System API"
+    },
+    {
+      "key": "test_customer_id",
+      "value": "1",
+      "type": "string",
+      "description": "Customer ID for testing (ensure this customer exists in your database)"
+    },
+    {
+      "key": "test_product_id",
+      "value": "1",
+      "type": "string",
+      "description": "Product ID for testing (ensure this product exists in your database)"
+    },
+    {
+      "key": "security_test_enabled",
+      "value": "true",
+      "type": "boolean",
+      "description": "Enable/disable security tests (XSS, SQL injection)"
+    },
+    {
+      "key": "monitoring_enabled",
+      "value": "true", 
+      "type": "boolean",
+      "description": "Enable/disable monitoring and health check tests"
+    },
+    {
+      "key": "performance_threshold_ms",
+      "value": "100",
+      "type": "string",
+      "description": "Response time threshold for performance tests (milliseconds)"
+    }
+  ]
+}
