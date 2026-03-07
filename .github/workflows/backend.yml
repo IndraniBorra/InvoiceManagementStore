@@ -2,7 +2,7 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [forecasting]
+    branches: [main]
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
