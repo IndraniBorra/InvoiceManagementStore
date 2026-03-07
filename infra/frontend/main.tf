@@ -18,6 +18,12 @@ provider "aws" {
 
 # ── S3 bucket (private — CloudFront reads via OAC) ───────────────────────────
 
+# Import existing bucket if it was created outside Terraform (e.g. by CI workflow)
+import {
+  to = aws_s3_bucket.frontend
+  id = "smartinvoice-${var.stage}-frontend"
+}
+
 resource "aws_s3_bucket" "frontend" {
   bucket = "smartinvoice-${var.stage}-frontend"
 }
