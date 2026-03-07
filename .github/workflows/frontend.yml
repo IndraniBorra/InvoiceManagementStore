@@ -45,9 +45,24 @@ jobs:
           CI: false   # Don't treat warnings as errors
         run: npm run build
 
-      - name: Deploy to S3
+      - name: Create S3 bucket if not exists
         env:
           FRONTEND_S3_BUCKET: ${{ secrets.FRONTEND_S3_BUCKET }}
+        run: |
+          BUCKET=${FRONTEND_S3_BUCKET:-smartinvoice-dev-frontend}
+          echo "FRONTEND_S3_BUCKET=${BUCKET}" >> $GITHUB_ENV
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "Creating bucket: $BUCKET"
+            aws s3api create-bucket --bucket "$BUCKET" --region us-east-1
+            aws s3api put-public-access-block --bucket "$BUCKET" \
+              --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+            aws s3api put-bucket-versioning --bucket "$BUCKET" \
+              --versioning-configuration Status=Enabled
+          else
+            echo "Bucket already exists: $BUCKET"
+          fi
+
+      - name: Deploy to S3
         run: |
           aws s3 sync frontend/invoicemanagement-app/build/ s3://$FRONTEND_S3_BUCKET/ \
             --delete \
