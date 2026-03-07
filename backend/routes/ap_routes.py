@@ -16,7 +16,11 @@ from services.ap_extractor import extract_from_bytes
 router = APIRouter(tags=["accounts-payable"])
 
 # Local fallback directory (used when S3_UPLOADS_BUCKET is not set)
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "ap")
+# Use /tmp in Lambda (read-only filesystem), local path otherwise
+if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    UPLOAD_DIR = "/tmp/uploads/ap"
+else:
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "ap")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 S3_BUCKET = os.getenv("S3_UPLOADS_BUCKET", "")
