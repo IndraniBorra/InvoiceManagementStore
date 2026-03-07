@@ -36,6 +36,10 @@ jobs:
       - name: Install Serverless Framework
         run: npm install -g serverless
 
+      - name: Install Serverless plugins
+        working-directory: backend
+        run: npm install
+
       - name: Deploy
         working-directory: backend
         env:

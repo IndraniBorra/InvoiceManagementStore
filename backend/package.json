@@ -1,0 +1,7 @@
+{
+  "name": "invoicemanagement-backend",
+  "version": "1.0.0",
+  "devDependencies": {
+    "serverless-python-requirements": "^6.1.1"
+  }
+}
