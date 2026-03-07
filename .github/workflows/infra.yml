@@ -1,0 +1,107 @@
+name: Deploy Infrastructure (Terraform)
+
+on:
+  # Manual trigger only — you control when infra changes deploy
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod]
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'apply'
+        type: choice
+        options: [plan, apply, destroy]
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.action }} (${{ inputs.stage }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+          terraform_wrapper: false  # needed for clean output capture
+
+      # Create the S3 state bucket if it doesn't exist yet
+      # (this only needs to succeed once — after that the bucket already exists)
+      - name: Create Terraform state bucket
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          STATE_BUCKET="smartinvoice-tf-state-${ACCOUNT_ID}"
+          echo "STATE_BUCKET=${STATE_BUCKET}" >> $GITHUB_ENV
+
+          # Create bucket (ignore error if it already exists)
+          aws s3 mb s3://${STATE_BUCKET} --region us-east-1 2>/dev/null || true
+
+          # Enable versioning so we can recover from bad applies
+          aws s3api put-bucket-versioning \
+            --bucket ${STATE_BUCKET} \
+            --versioning-configuration Status=Enabled 2>/dev/null || true
+
+      - name: Terraform Init
+        working-directory: infra/frontend
+        run: |
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=frontend-${{ inputs.stage }}/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -reconfigure
+
+      - name: Terraform Plan
+        working-directory: infra/frontend
+        run: terraform plan -var="stage=${{ inputs.stage }}" -out=tfplan
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        working-directory: infra/frontend
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        working-directory: infra/frontend
+        run: terraform destroy -auto-approve -var="stage=${{ inputs.stage }}"
+
+      # After apply: capture outputs and set them as GitHub Secrets automatically
+      # Requires GH_PAT secret (Personal Access Token with repo scope)
+      - name: Set GitHub Secrets from Terraform outputs
+        if: inputs.action == 'apply'
+        working-directory: infra/frontend
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          BUCKET=$(terraform output -raw frontend_bucket_name)
+          CF_ID=$(terraform output -raw cloudfront_distribution_id)
+          ORIGINS=$(terraform output -raw allowed_origins_value)
+          CF_URL=$(terraform output -raw cloudfront_url)
+
+          gh secret set FRONTEND_S3_BUCKET --body "$BUCKET"
+          gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "$CF_ID"
+          gh secret set ALLOWED_ORIGINS --body "$ORIGINS"
+
+          echo ""
+          echo "✅ GitHub Secrets set automatically!"
+          echo ""
+          echo "📦 Frontend bucket : $BUCKET"
+          echo "☁️  CloudFront URL  : $CF_URL"
+          echo "🔑 CF Distribution : $CF_ID"
+          echo ""
+          echo "⚠️  Still need to set manually after first backend deploy:"
+          echo "   DATABASE_URL      = postgresql://smartinvoice_admin:DB_PASS@RDS_ENDPOINT:5432/smartinvoice?sslmode=require"
+          echo "   REACT_APP_API_URL = (from CloudFormation output ApiGatewayUrl)"
