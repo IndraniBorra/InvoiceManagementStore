@@ -50,5 +50,5 @@ jobs:
           ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           LOG_LEVEL: INFO
-          DEBUG_MODE: "false"
+          DEBUG_MODE: "true"
         run: sls deploy --stage dev --verbose
