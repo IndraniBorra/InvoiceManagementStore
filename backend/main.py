@@ -40,11 +40,12 @@ CREATE_RATE_LIMIT = int(os.getenv("CREATE_RATE_LIMIT", 20))    # 20 create reque
 DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"  # Debug mode for error handling
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()  # Logging level
 
-# CORS configuration - use environment variables for flexibility and security
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002"
-).split(",")
+# CORS configuration — env var takes priority; falls back to localhost for local dev
+_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = (
+    [o.strip() for o in _origins_env.split(",") if o.strip()]
+    or ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3002"]
+)
 
 # Allowed methods - restrict to only what's needed
 ALLOWED_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]

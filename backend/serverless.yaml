@@ -64,8 +64,8 @@ provider:
     S3_UPLOADS_BUCKET: "smartinvoice-${self:provider.stage}-uploads"
     # API keys — set in GitHub Secrets
     ANTHROPIC_API_KEY: ${env:ANTHROPIC_API_KEY, ""}
-    # CORS — add your CloudFront URL here after Phase 2
-    ALLOWED_ORIGINS: ${env:ALLOWED_ORIGINS, "http://localhost:3000,http://localhost:3002"}
+    # CORS — defaults to localhost if not set (handled in main.py)
+    ALLOWED_ORIGINS: ${env:ALLOWED_ORIGINS, ""}
     # Logging
     LOG_LEVEL: ${env:LOG_LEVEL, "INFO"}
     DEBUG_MODE: ${env:DEBUG_MODE, "false"}
