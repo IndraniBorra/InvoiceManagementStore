@@ -103,6 +103,11 @@ const LLMAssistant = () => {
         add_line_item_to_invoice:  `add line item to invoice #${data.invoice_id}`,
         invoice_edit_guidance:     `help with invoice #${data.invoice_id}`,
         delete_invoice:            `delete invoice #${data.invoice_id}`,
+        show_payables:             'show accounts payable',
+        show_accounting:           'show accounting ledger',
+        show_journal:              'show journal entries',
+        show_trial_balance:        'show trial balance',
+        show_forecasting:          'show forecasting & insights',
         help:                      'show help',
       };
 
@@ -172,6 +177,19 @@ const LLMAssistant = () => {
           break;
         case 'show_reports':
           result = llmNav.reports.showReports('revenue');
+          break;
+        case 'show_payables':
+          result = llmNav.navigateToRoute('/ap');
+          break;
+        case 'show_accounting':
+        case 'show_journal':
+          result = llmNav.navigateToRoute('/accounting');
+          break;
+        case 'show_trial_balance':
+          result = llmNav.navigateToRoute('/accounting?tab=2');
+          break;
+        case 'show_forecasting':
+          result = llmNav.navigateToRoute('/forecasting');
           break;
         default:
           result = llmNav.navigateToRoute(action.route || '/');
@@ -470,7 +488,7 @@ const LLMAssistant = () => {
             {messages.length === 0 && (
               <div className="message system">
                 <div className="message-content">
-                  <pre>Ask me anything! Try: "show invoices", "create customer", "show reports"</pre>
+                  <pre>Ask me anything! Try: "show invoices", "show accounting", "show forecasting", "show payables", "trial balance", "create customer"</pre>
                 </div>
               </div>
             )}
@@ -530,7 +548,7 @@ const LLMAssistant = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about invoices, customers, or products..."
+              placeholder="Ask anything — invoices, customers, reports, accounting..."
               disabled={isLoading}
             />
             <button

@@ -42,7 +42,12 @@ INVOICE_APP_TOOL = {
                     "create_invoice_with_data",
                     "add_line_item_to_invoice",
                     "invoice_edit_guidance",
-                    "delete_invoice"
+                    "delete_invoice",
+                    "show_payables",
+                    "show_accounting",
+                    "show_journal",
+                    "show_trial_balance",
+                    "show_forecasting"
                 ],
                 "description": "The action to perform in the app"
             },
@@ -101,6 +106,11 @@ Action selection rules (check in this exact order):
 12. User says "show/view invoice #N" → view_invoice with invoice_id=N
 13. User says "show reports" → show_reports
 14. User says "overdue invoices" → overdue_invoices
+15. User says "show payables / accounts payable / AP / vendor invoices" → show_payables
+16. User says "show accounting / ledger / accounting page" → show_accounting
+17. User says "show journal / journal entries" → show_journal
+18. User says "show trial balance / balance sheet" → show_trial_balance
+19. User says "show forecasting / forecast / revenue forecast / predictions" → show_forecasting
 
 Examples:
 - "create a customer" → create_customer_with_data
@@ -123,6 +133,18 @@ Examples:
 - "edit invoice 12" → edit_invoice with invoice_id=12
 - "show customers" → list_customers
 - "show products" → list_products
+- "show payables" → show_payables
+- "show AP" → show_payables
+- "vendor invoices" → show_payables
+- "show accounting" → show_accounting
+- "show ledger" → show_accounting
+- "show journal" → show_journal
+- "journal entries" → show_journal
+- "trial balance" → show_trial_balance
+- "balance sheet" → show_trial_balance
+- "show forecasting" → show_forecasting
+- "revenue forecast" → show_forecasting
+- "show predictions" → show_forecasting
 
 When action is create_invoice_with_data, extract into extracted_data:
 - customer_name (always)
