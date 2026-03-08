@@ -24,6 +24,7 @@ import './styles/components/Navbar.css';
 import './styles/components/DashboardPage.css';
 import './styles/components/APModule.css';
 import './styles/components/AccountingPage.css';
+import './styles/components/ForecastingPage.css';
 
 // Import pages
 import InvoicePage from './pages/InvoicePage';
@@ -34,6 +35,7 @@ import APInvoiceList from './pages/APInvoiceList';
 import APInvoiceDetail from './pages/APInvoiceDetail';
 import APVendors from './pages/APVendors';
 import AccountingPage from './pages/AccountingPage';
+import ForecastingPage from './pages/ForecastingPage';
 
 // Import old components for backward compatibility during transition
 import AllInvoicesPage from './components/AllInvoicesPage';
@@ -86,6 +88,9 @@ const App = () => {
 
               {/* Accounting Ledger */}
               <Route path="/accounting" element={<AccountingPage />} />
+
+              {/* Forecasting & Insights */}
+              <Route path="/forecasting" element={<ForecastingPage />} />
 
               {/* Default/Fallback Route */}
               <Route path="*" element={<DashboardPage />} />
