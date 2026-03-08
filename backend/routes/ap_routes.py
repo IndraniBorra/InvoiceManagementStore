@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from database import get_session
 from models import APInvoice, APLineItem, APPayment, APVendor
 from services.ap_extractor import extract_from_bytes
+from routes.accounting_routes import post_journal_entry
 
 router = APIRouter(tags=["accounts-payable"])
 
@@ -444,6 +445,16 @@ def approve_ap_invoice(invoice_id: int, session: Session = Depends(get_session))
         raise HTTPException(status_code=400, detail=f"Cannot approve an invoice with status '{invoice.status}'")
     invoice.status = "approved"
     session.commit()
+    post_journal_entry(
+        session, date.today(),
+        f"AP Invoice #{invoice_id} approved",
+        "ap_invoice", invoice_id,
+        [
+            {"account_code": "5000", "debit": invoice.total_amount, "credit": 0.0, "description": "Cost of Goods Sold"},
+            {"account_code": "2000", "debit": 0.0, "credit": invoice.total_amount, "description": "Accounts Payable"},
+        ]
+    )
+    session.commit()
     return {"id": invoice.id, "status": invoice.status}
 
 
@@ -490,6 +501,16 @@ def record_payment(
     )
     invoice.status = "paid"
     session.add(payment)
+    session.commit()
+    post_journal_entry(
+        session, body.payment_date,
+        f"AP Invoice #{invoice_id} payment recorded",
+        "ap_payment", payment.id,
+        [
+            {"account_code": "2000", "debit": body.payment_amount, "credit": 0.0, "description": "Accounts Payable cleared"},
+            {"account_code": "1000", "debit": 0.0, "credit": body.payment_amount, "description": "Cash paid"},
+        ]
+    )
     session.commit()
     return {"id": invoice.id, "status": invoice.status, "payment_id": payment.id}
 

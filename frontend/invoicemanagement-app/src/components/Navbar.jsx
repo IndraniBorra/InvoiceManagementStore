@@ -8,7 +8,8 @@ const NAV_LINKS = [
   { to: '/customer',  label: 'Customers' },
   { to: '/product',   label: 'Products'  },
   { to: '/reports',   label: 'Reports'   },
-  { to: '/ap',        label: 'Payables'  },
+  { to: '/ap',          label: 'Payables'   },
+  { to: '/accounting',  label: 'Accounting' },
 ];
 
 const Navbar = () => {

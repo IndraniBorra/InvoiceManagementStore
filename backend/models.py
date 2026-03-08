@@ -5,6 +5,52 @@ from pydantic import field_validator
 from datetime import date, datetime
 
 
+# ── Accounting Models ──────────────────────────────────────────────────────────
+
+class ChartOfAccount(SQLModel, table=True):
+    __tablename__ = "chart_of_account"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(unique=True, index=True)          # e.g. "1000"
+    name: str = Field(index=True)                        # e.g. "Cash"
+    account_type: str                                    # asset | liability | equity | revenue | expense
+    normal_balance: str                                  # debit | credit
+    description: Optional[str] = None
+    is_active: bool = Field(default=True)
+
+    lines: List["JournalLine"] = Relationship(back_populates="account")
+
+
+class JournalEntry(SQLModel, table=True):
+    __tablename__ = "journal_entry"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    entry_date: date
+    description: str
+    reference_type: Optional[str] = None   # ar_invoice | ap_invoice | ap_payment | manual
+    reference_id: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    lines: List["JournalLine"] = Relationship(
+        back_populates="entry",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
+
+class JournalLine(SQLModel, table=True):
+    __tablename__ = "journal_line"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    journal_entry_id: int = Field(foreign_key="journal_entry.id", index=True)
+    account_id: int = Field(foreign_key="chart_of_account.id", index=True)
+    debit: float = Field(default=0.0)
+    credit: float = Field(default=0.0)
+    description: Optional[str] = None
+
+    entry: Optional[JournalEntry] = Relationship(back_populates="lines")
+    account: Optional[ChartOfAccount] = Relationship(back_populates="lines")
+
+
 # ── Accounts Payable Models ────────────────────────────────────────────────────
 
 class APVendor(SQLModel, table=True):

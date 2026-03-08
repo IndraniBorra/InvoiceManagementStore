@@ -12,6 +12,7 @@ from routes.health import router as health_router
 from routes.report_routes import router as report_router
 from routes.assistant import router as assistant_router
 from routes.ap_routes import router as ap_router
+from routes.accounting_routes import router as accounting_router
 
 # Import security middleware
 from middleware.validation import InputValidationMiddleware, SecurityHeadersMiddleware
@@ -32,6 +33,33 @@ app = FastAPI(
 def on_startup():
     """Create database tables on application startup for data persistence."""
     create_db_and_tables()
+    _seed_chart_of_accounts()
+
+
+def _seed_chart_of_accounts():
+    """Seed default chart of accounts if not already present."""
+    from sqlmodel import Session, select
+    from models import ChartOfAccount
+    from database import engine
+
+    DEFAULT_ACCOUNTS = [
+        ("1000", "Cash",                  "asset",     "debit",  "Physical and bank cash"),
+        ("1100", "Accounts Receivable",   "asset",     "debit",  "Money owed by customers"),
+        ("2000", "Accounts Payable",      "liability", "credit", "Money owed to vendors"),
+        ("3000", "Owner's Equity",        "equity",    "credit", "Owner investment and retained earnings"),
+        ("4000", "Revenue",               "revenue",   "credit", "Income from sales"),
+        ("5000", "Cost of Goods Sold",    "expense",   "debit",  "Direct costs of products/services sold"),
+    ]
+
+    with Session(engine) as session:
+        for code, name, acct_type, normal_bal, desc in DEFAULT_ACCOUNTS:
+            exists = session.exec(select(ChartOfAccount).where(ChartOfAccount.code == code)).first()
+            if not exists:
+                session.add(ChartOfAccount(
+                    code=code, name=name, account_type=acct_type,
+                    normal_balance=normal_bal, description=desc
+                ))
+        session.commit()
 
 # Security Configuration
 MAX_REQUEST_SIZE = int(os.getenv("MAX_REQUEST_SIZE", 10 * 1024 * 1024))  # 10MB default
@@ -104,6 +132,7 @@ app.include_router(health_router)
 app.include_router(report_router)
 app.include_router(assistant_router)
 app.include_router(ap_router)
+app.include_router(accounting_router)
 
 # Lambda handler for serverless deployment
 handler = Mangum(app)

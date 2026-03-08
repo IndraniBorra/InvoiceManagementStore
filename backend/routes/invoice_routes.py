@@ -6,6 +6,7 @@ from typing import List
 from datetime import date, timedelta
 from models import Invoice, LineItem, Customer, Product
 from api import CustomerMinimalResponse, InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest, ProductMinimalResponse
+from routes.accounting_routes import post_journal_entry
 
 router = APIRouter()
 
@@ -281,11 +282,14 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
             raise HTTPException(status_code=404, detail="Customer not found")
 
     # Update invoice fields (matching actual Invoice model)
+    old_status = invoice_db.invoice_status
+    new_status = updated_invoice.invoice_status or "draft"
+
     invoice_db.customer_id = updated_invoice.customer_id
     invoice_db.date_issued = updated_invoice.date_issued
     invoice_db.invoice_terms = updated_invoice.invoice_terms
     invoice_db.invoice_due_date = calculate_due_date(updated_invoice.date_issued, updated_invoice.invoice_terms)
-    invoice_db.invoice_status = updated_invoice.invoice_status or "draft"
+    invoice_db.invoice_status = new_status
     invoice_db.invoice_total = updated_invoice.invoice_total
 
     # Clear old line items and add new ones
@@ -308,6 +312,32 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
     session.add(invoice_db)
     session.commit()
     session.refresh(invoice_db)
+
+    # Auto-post journal entries on status transitions
+    amount = invoice_db.invoice_total
+    if old_status != new_status:
+        if new_status == "submitted":
+            post_journal_entry(
+                session, invoice_db.date_issued,
+                f"AR Invoice #{invoice_id} submitted",
+                "ar_invoice", invoice_id,
+                [
+                    {"account_code": "1100", "debit": amount, "credit": 0.0, "description": "Accounts Receivable"},
+                    {"account_code": "4000", "debit": 0.0, "credit": amount, "description": "Revenue"},
+                ]
+            )
+            session.commit()
+        elif new_status == "paid":
+            post_journal_entry(
+                session, date.today(),
+                f"AR Invoice #{invoice_id} paid",
+                "ar_invoice", invoice_id,
+                [
+                    {"account_code": "1000", "debit": amount, "credit": 0.0, "description": "Cash received"},
+                    {"account_code": "1100", "debit": 0.0, "credit": amount, "description": "Accounts Receivable cleared"},
+                ]
+            )
+            session.commit()
 
     # Reload with relationships to ensure we have fresh data including line item products
     statement = (

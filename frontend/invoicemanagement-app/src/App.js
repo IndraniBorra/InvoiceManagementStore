@@ -23,6 +23,7 @@ import './styles/components/Logo.css';
 import './styles/components/Navbar.css';
 import './styles/components/DashboardPage.css';
 import './styles/components/APModule.css';
+import './styles/components/AccountingPage.css';
 
 // Import pages
 import InvoicePage from './pages/InvoicePage';
@@ -32,6 +33,7 @@ import APDashboard from './pages/APDashboard';
 import APInvoiceList from './pages/APInvoiceList';
 import APInvoiceDetail from './pages/APInvoiceDetail';
 import APVendors from './pages/APVendors';
+import AccountingPage from './pages/AccountingPage';
 
 // Import old components for backward compatibility during transition
 import AllInvoicesPage from './components/AllInvoicesPage';
@@ -81,6 +83,9 @@ const App = () => {
               <Route path="/ap/invoices" element={<APInvoiceList />} />
               <Route path="/ap/invoice/:id" element={<APInvoiceDetail />} />
               <Route path="/ap/vendors" element={<APVendors />} />
+
+              {/* Accounting Ledger */}
+              <Route path="/accounting" element={<AccountingPage />} />
 
               {/* Default/Fallback Route */}
               <Route path="*" element={<DashboardPage />} />
