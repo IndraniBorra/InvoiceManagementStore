@@ -32,20 +32,23 @@ const ForecastingPage = () => {
   const [cashflow, setCashflow]   = useState(null);
   const [aging, setAging]         = useState(null);
   const [insights, setInsights]   = useState(null);
+  const [riskData, setRiskData]   = useState(null);
   const [loading, setLoading]     = useState(true);
   const [insightLoading, setInsightLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [revRes, cfRes, agRes] = await Promise.all([
+        const [revRes, cfRes, agRes, riskRes] = await Promise.all([
           apiClient.get('/forecasting/revenue'),
           apiClient.get('/forecasting/cashflow'),
           apiClient.get('/forecasting/aging'),
+          apiClient.get('/forecasting/risk-all'),
         ]);
         setRevenue(revRes.data);
         setCashflow(cfRes.data);
         setAging(agRes.data);
+        setRiskData(riskRes.data);
       } catch (e) {
         console.error('Forecasting load error:', e);
       } finally {
@@ -168,6 +171,59 @@ const ForecastingPage = () => {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* Late Payment Risk — XGBoost */}
+      <div className="forecast-card" style={{ marginBottom: '1.25rem' }}>
+        <p className="forecast-card-title">
+          Late Payment Risk — XGBoost Model
+          {riskData && (
+            <span style={{ float: 'right', fontSize: '0.75rem', fontWeight: 400, color: '#64748b' }}>
+              {riskData.high_risk_count} high · {riskData.medium_risk_count} medium · {riskData.low_risk_count} low
+            </span>
+          )}
+        </p>
+        {loading ? (
+          [...Array(5)].map((_, i) => <div key={i} className="fc-skeleton" />)
+        ) : !riskData || riskData.invoices.length === 0 ? (
+          <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>No outstanding invoices to score.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                {['Invoice', 'Amount', 'Due Date', 'Status', 'Risk Score', 'Label'].map((h) => (
+                  <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', color: '#64748b', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {riskData.invoices.slice(0, 10).map((r) => (
+                <tr key={r.invoice_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '0.5rem 0.75rem', fontFamily: 'monospace' }}>#{r.invoice_id}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>{fmt(r.amount)}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>{r.due_date}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', textTransform: 'capitalize', color: '#64748b' }}>{r.status}</td>
+                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 999 }}>
+                        <div style={{ width: `${r.risk_score}%`, height: '100%', borderRadius: 999,
+                          background: r.risk_color === 'green' ? '#22c55e' : r.risk_color === 'orange' ? '#f59e0b' : '#ef4444' }} />
+                      </div>
+                      <span style={{ fontWeight: 600, minWidth: 28 }}>{r.risk_score}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                    <span style={{
+                      padding: '0.15rem 0.5rem', borderRadius: 9999, fontSize: '0.7rem', fontWeight: 600,
+                      background: r.risk_color === 'green' ? '#dcfce7' : r.risk_color === 'orange' ? '#fff7ed' : '#fee2e2',
+                      color: r.risk_color === 'green' ? '#15803d' : r.risk_color === 'orange' ? '#c2410c' : '#b91c1c',
+                    }}>{r.risk_label}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* AR Aging */}
