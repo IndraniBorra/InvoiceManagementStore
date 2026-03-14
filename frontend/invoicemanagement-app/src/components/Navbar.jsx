@@ -9,7 +9,8 @@ const NAV_LINKS = [
   { to: '/product',   label: 'Products'  },
   { to: '/reports',   label: 'Reports'   },
   { to: '/ap',          label: 'Payables'   },
-  { to: '/accounting',  label: 'Accounting' },
+  { to: '/accounting',  label: 'Accounting'  },
+  { to: '/forecasting', label: 'Forecasting' },
 ];
 
 const Navbar = () => {

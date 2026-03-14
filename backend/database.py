@@ -10,7 +10,7 @@ if DATABASE_URL:
     engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 else:
     # Local development: SQLite fallback
-    engine = create_engine("sqlite:///database.db", echo=True)
+    engine = create_engine("sqlite:///database.db", echo=False)
 
 
 def create_db_and_tables():
