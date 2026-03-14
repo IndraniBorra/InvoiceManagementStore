@@ -175,3 +175,129 @@
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── Bank Statement Tab ───────────────────────────────── */
+.acct-bank-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  text-align: center;
+}
+.acct-bank-dropzone:hover,
+.acct-bank-dropzone.drag-over {
+  border-color: #6366f1;
+  background: #f0f0ff;
+}
+.acct-bank-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.acct-bank-label { font-size: 1rem; font-weight: 500; color: #1e293b; margin: 0 0 0.25rem; }
+.acct-bank-sub { font-size: 0.8125rem; color: #94a3b8; margin: 0; }
+
+.acct-bank-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #475569;
+}
+.acct-bank-credits { color: #16a34a; }
+.acct-bank-debits  { color: #dc2626; }
+
+.acct-bank-row--in  td { background: #f0fdf4; }
+.acct-bank-row--out td { background: #fff5f5; }
+
+.acct-bank-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.acct-bank-cancel {
+  padding: 0.5rem 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.acct-bank-confirm {
+  padding: 0.5rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: #6366f1;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.acct-bank-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+.acct-bank-confirm:hover:not(:disabled) { background: #4f46e5; }
+
+.acct-bank-success {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #15803d;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+.acct-bank-reset {
+  margin-left: auto;
+  padding: 0.375rem 1rem;
+  border: 1px solid #16a34a;
+  border-radius: 6px;
+  background: transparent;
+  color: #16a34a;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+/* ── Journal Filter Pills ─────────────────────────────── */
+.acct-journal-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+.acct-journal-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.acct-journal-pill:hover { border-color: #6366f1; color: #6366f1; }
+.acct-journal-pill.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.acct-journal-pill-count {
+  background: rgba(0,0,0,0.12);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.acct-journal-pill.active .acct-journal-pill-count {
+  background: rgba(255,255,255,0.25);
+}

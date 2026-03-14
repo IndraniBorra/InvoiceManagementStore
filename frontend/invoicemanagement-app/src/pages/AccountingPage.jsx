@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../services/api';
 import '../styles/components/AccountingPage.css';
 
@@ -9,7 +9,7 @@ const TYPE_BADGE = ({ type }) => (
   <span className={`acct-badge acct-badge--${type}`}>{type}</span>
 );
 
-const TABS = ['Journal', 'Chart of Accounts', 'Trial Balance'];
+const TABS = ['Journal', 'Chart of Accounts', 'Trial Balance', 'Bank Statement'];
 
 const AccountingPage = () => {
   const [tab, setTab] = useState(0);
@@ -20,6 +20,17 @@ const AccountingPage = () => {
   const [expandedEntry, setExpandedEntry] = useState(null);
   const [entryLines, setEntryLines] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // Journal filter
+  const [journalFilter, setJournalFilter] = useState('all');
+
+  // Bank statement state
+  const [uploadingStatement, setUploadingStatement] = useState(false);
+  const [statementResult, setStatementResult] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmResult, setConfirmResult] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const statementInputRef = useRef(null);
 
   useEffect(() => {
     const load = async () => {
@@ -59,10 +70,66 @@ const AccountingPage = () => {
     }
   };
 
+  const uploadStatement = async (file) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext !== 'csv' && ext !== 'pdf') {
+      alert('Only CSV and PDF files are supported');
+      return;
+    }
+    setUploadingStatement(true);
+    setStatementResult(null);
+    setConfirmResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await apiClient.post('/accounting/bank-statement', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setStatementResult(res.data);
+    } catch (e) {
+      alert('Upload failed: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setUploadingStatement(false);
+      if (statementInputRef.current) statementInputRef.current.value = '';
+    }
+  };
+
+  const handleStatementFile = (e) => uploadStatement(e.target.files[0]);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    uploadStatement(e.dataTransfer.files[0]);
+  };
+
+  const handleConfirm = async () => {
+    if (!statementResult) return;
+    setConfirming(true);
+    try {
+      const res = await apiClient.post('/accounting/bank-statement/confirm', {
+        transactions: statementResult.transactions,
+      });
+      setConfirmResult(res.data);
+      setStatementResult(null);
+      // Refresh journal and summary
+      const [sumRes, jRes] = await Promise.all([
+        apiClient.get('/accounting/summary'),
+        apiClient.get('/accounting/journal'),
+      ]);
+      setSummary(sumRes.data);
+      setJournal(jRes.data);
+    } catch (e) {
+      alert('Confirm failed: ' + (e.response?.data?.detail || e.message));
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const refLabel = (type, id) => {
     if (!type) return '—';
-    const labels = { ar_invoice: 'AR', ap_invoice: 'AP', ap_payment: 'Payment', manual: 'Manual' };
-    return `${labels[type] || type} #${id}`;
+    const labels = { ar_invoice: 'AR', ap_invoice: 'AP', ap_payment: 'Payment', manual: 'Manual', bank_statement: 'Bank' };
+    return id ? `${labels[type] || type} #${id}` : labels[type] || type;
   };
 
   return (
@@ -99,9 +166,43 @@ const AccountingPage = () => {
       </div>
 
       {/* Journal Tab */}
-      {tab === 0 && (
-        <div className="acct-card">
-          <table className="acct-table">
+      {tab === 0 && (() => {
+        const filteredJournal = journal.filter(e => {
+          if (journalFilter === 'ar')     return e.reference_type === 'ar_invoice';
+          if (journalFilter === 'ap')     return ['ap_invoice', 'ap_payment'].includes(e.reference_type);
+          if (journalFilter === 'bank')   return e.reference_type === 'bank_statement';
+          if (journalFilter === 'manual') return e.reference_type === 'manual';
+          return true;
+        });
+        const countFor = (f) => {
+          if (f === 'all')    return journal.length;
+          if (f === 'ar')     return journal.filter(e => e.reference_type === 'ar_invoice').length;
+          if (f === 'ap')     return journal.filter(e => ['ap_invoice','ap_payment'].includes(e.reference_type)).length;
+          if (f === 'bank')   return journal.filter(e => e.reference_type === 'bank_statement').length;
+          if (f === 'manual') return journal.filter(e => e.reference_type === 'manual').length;
+          return 0;
+        };
+        return (
+          <>
+            <div className="acct-journal-filters">
+              {[
+                { key: 'all',    label: 'All' },
+                { key: 'ar',     label: 'AR Invoices' },
+                { key: 'ap',     label: 'AP / Payments' },
+                { key: 'bank',   label: 'Bank' },
+                { key: 'manual', label: 'Manual' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={`acct-journal-pill${journalFilter === key ? ' active' : ''}`}
+                  onClick={() => setJournalFilter(key)}
+                >
+                  {label} <span className="acct-journal-pill-count">{countFor(key)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="acct-card">
+              <table className="acct-table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -120,10 +221,10 @@ const AccountingPage = () => {
                     ))}
                   </tr>
                 ))
-              ) : journal.length === 0 ? (
-                <tr><td colSpan="5" className="acct-empty">No journal entries yet. They appear automatically when invoices change status.</td></tr>
+              ) : filteredJournal.length === 0 ? (
+                <tr><td colSpan="5" className="acct-empty">{journalFilter === 'all' ? 'No journal entries yet.' : `No ${journalFilter.toUpperCase()} entries found.`}</td></tr>
               ) : (
-                journal.map((entry) => (
+                filteredJournal.map((entry) => (
                   <React.Fragment key={entry.id}>
                     <tr className="expandable" onClick={() => toggleEntry(entry.id)}>
                       <td>{entry.entry_date}</td>
@@ -149,7 +250,9 @@ const AccountingPage = () => {
             </tbody>
           </table>
         </div>
-      )}
+        </>
+        );
+      })()}
 
       {/* Chart of Accounts Tab */}
       {tab === 1 && (
@@ -184,6 +287,91 @@ const AccountingPage = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Bank Statement Tab */}
+      {tab === 3 && (
+        <div className="acct-card">
+          {/* Success message */}
+          {confirmResult && (
+            <div className="acct-bank-success">
+              ✓ {confirmResult.message} — switch to the Journal tab to see them.
+              <button className="acct-bank-reset" onClick={() => setConfirmResult(null)}>Upload Another</button>
+            </div>
+          )}
+
+          {/* Upload zone — shown when no result yet */}
+          {!statementResult && !confirmResult && (
+            <label
+              className={`acct-bank-dropzone${dragOver ? ' drag-over' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={statementInputRef}
+                type="file"
+                accept=".csv,.pdf"
+                style={{ display: 'none' }}
+                disabled={uploadingStatement}
+                onChange={handleStatementFile}
+              />
+              {uploadingStatement ? (
+                <>
+                  <span className="acct-bank-icon">⏳</span>
+                  <p className="acct-bank-label">Claude is classifying transactions…</p>
+                </>
+              ) : (
+                <>
+                  <span className="acct-bank-icon">📄</span>
+                  <p className="acct-bank-label">Drop a bank statement here or <u>browse</u></p>
+                  <p className="acct-bank-sub">Supports CSV and PDF · Columns: Date, Description, Amount</p>
+                </>
+              )}
+            </label>
+          )}
+
+          {/* Review table — shown after classification */}
+          {statementResult && (
+            <>
+              <div className="acct-bank-meta">
+                <span>{statementResult.count} transactions classified</span>
+                <span className="acct-bank-credits">+{fmt(statementResult.total_credits)} in</span>
+                <span className="acct-bank-debits">−{fmt(statementResult.total_debits)} out</span>
+              </div>
+              <table className="acct-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Debit Acct</th>
+                    <th>Credit Acct</th>
+                    <th className="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statementResult.transactions.map((t, i) => (
+                    <tr key={i} className={t.amount >= 0 ? 'acct-bank-row--in' : 'acct-bank-row--out'}>
+                      <td>{t.date}</td>
+                      <td>{t.journal_description || t.description}</td>
+                      <td style={{ fontFamily: 'monospace' }}>{t.debit_account}</td>
+                      <td style={{ fontFamily: 'monospace' }}>{t.credit_account}</td>
+                      <td className="num" style={{ fontWeight: 600 }}>
+                        {t.amount >= 0 ? '+' : '−'}{fmt(Math.abs(t.amount))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="acct-bank-actions">
+                <button className="acct-bank-cancel" onClick={() => setStatementResult(null)}>Cancel</button>
+                <button className="acct-bank-confirm" onClick={handleConfirm} disabled={confirming}>
+                  {confirming ? 'Posting…' : `Confirm & Post All ${statementResult.count} Entries`}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

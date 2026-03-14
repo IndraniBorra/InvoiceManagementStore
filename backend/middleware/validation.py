@@ -55,6 +55,9 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
     # Paths exempt from SQL injection / XSS body scanning (natural language input)
     EXEMPT_PATHS = {"/assistant/query"}
 
+    # Paths that completely skip body consumption — FastAPI reads these directly
+    BYPASS_BODY_PATHS = {"/accounting/bank-statement/confirm"}
+
     async def dispatch(self, request: Request, call_next):
         """
         Main middleware dispatcher that validates all incoming requests.
@@ -69,8 +72,11 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
             # Read and validate request body for JSON requests only.
             # Multipart/form-data (file uploads) must not have their receive
             # stream consumed here — FastAPI needs it intact for UploadFile parsing.
+            # BYPASS_BODY_PATHS are also skipped — FastAPI reads them directly.
             content_type = request.headers.get('content-type', '')
-            if request.method in ["POST", "PUT", "PATCH"] and content_type.startswith('application/json'):
+            if (request.method in ["POST", "PUT", "PATCH"]
+                    and content_type.startswith('application/json')
+                    and request.url.path not in self.BYPASS_BODY_PATHS):
                 body = await request.body()
                 if body:
                     if request.url.path not in self.EXEMPT_PATHS:
@@ -224,10 +230,10 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
         Recreate request object with validated body.
         This is necessary because FastAPI Request body can only be read once.
         """
-        # Create a new request with the same properties but fresh body
-        scope = request.scope.copy()
-        scope['fastapi_aiofiles_body'] = body
-        return Request(scope)
+        async def receive() -> dict:
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return Request(request.scope, receive)
 
     def _get_timestamp(self) -> str:
         """

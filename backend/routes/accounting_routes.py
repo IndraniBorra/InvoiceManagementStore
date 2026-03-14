@@ -1,7 +1,13 @@
+import csv
+import io
+import json
+import re
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import anthropic
+import pdfplumber
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlmodel import Session, select, func
 
@@ -26,6 +32,20 @@ class JournalLineCreate(BaseModel):
     debit: float = 0.0
     credit: float = 0.0
     description: Optional[str] = None
+
+
+class BankTransaction(BaseModel):
+    date: str
+    description: str
+    amount: float
+    type: str                   # credit | debit
+    debit_account: str          # account code e.g. "1000"
+    credit_account: str
+    journal_description: str
+
+
+class BankStatementConfirm(BaseModel):
+    transactions: List[BankTransaction]
 
 
 class JournalEntryCreate(BaseModel):
@@ -132,9 +152,30 @@ def list_journal_entries(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     reference_type: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
     session: Session = Depends(get_session),
 ):
-    stmt = select(JournalEntry).order_by(JournalEntry.entry_date.desc(), JournalEntry.id.desc())
+    from sqlalchemy import select as sa_select, outerjoin
+    from sqlalchemy.orm import aliased
+
+    # Single query: JOIN entries with lines, aggregate totals, apply filters + limit
+    stmt = (
+        sa_select(
+            JournalEntry.id,
+            JournalEntry.entry_date,
+            JournalEntry.description,
+            JournalEntry.reference_type,
+            JournalEntry.reference_id,
+            JournalEntry.created_at,
+            func.coalesce(func.sum(JournalLine.debit), 0.0).label("total_debit"),
+            func.coalesce(func.sum(JournalLine.credit), 0.0).label("total_credit"),
+        )
+        .select_from(JournalEntry)
+        .outerjoin(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+        .group_by(JournalEntry.id)
+        .order_by(JournalEntry.entry_date.desc(), JournalEntry.id.desc())
+        .limit(limit)
+    )
     if start_date:
         stmt = stmt.where(JournalEntry.entry_date >= start_date)
     if end_date:
@@ -142,23 +183,20 @@ def list_journal_entries(
     if reference_type:
         stmt = stmt.where(JournalEntry.reference_type == reference_type)
 
-    entries = session.exec(stmt).all()
-    result = []
-    for e in entries:
-        lines = session.exec(select(JournalLine).where(JournalLine.journal_entry_id == e.id)).all()
-        total_debit  = sum(l.debit  for l in lines)
-        total_credit = sum(l.credit for l in lines)
-        result.append({
-            "id": e.id,
-            "entry_date": str(e.entry_date),
-            "description": e.description,
-            "reference_type": e.reference_type,
-            "reference_id": e.reference_id,
-            "total_debit": round(total_debit, 2),
-            "total_credit": round(total_credit, 2),
-            "created_at": e.created_at.isoformat(),
-        })
-    return result
+    rows = session.exec(stmt).all()
+    return [
+        {
+            "id": r.id,
+            "entry_date": str(r.entry_date),
+            "description": r.description,
+            "reference_type": r.reference_type,
+            "reference_id": r.reference_id,
+            "total_debit": round(r.total_debit, 2),
+            "total_credit": round(r.total_credit, 2),
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
 
 
 @router.get("/journal/{entry_id}")
@@ -350,3 +388,136 @@ def get_pl_summary(session: Session = Depends(get_session)):
         "accounts_receivable": ar,
         "accounts_payable": ap,
     }
+
+
+# ── Bank Statement Upload ───────────────────────────────────────────────────────
+
+_BANK_SYSTEM_PROMPT = """You are a bookkeeping AI. Classify bank statement transactions using double-entry accounting.
+
+Chart of Accounts:
+- 1000: Cash (asset)
+- 1100: Accounts Receivable (asset)
+- 2000: Accounts Payable (liability)
+- 4000: Revenue (revenue)
+- 5000: Expenses (expense)
+
+Rules:
+- Positive amount (money IN from a customer invoice payment): DR Cash(1000) / CR AR(1100)
+- Positive amount (other income/revenue deposits): DR Cash(1000) / CR Revenue(4000)
+- Negative amount (paying a supplier/vendor bill): DR AP(2000) / CR Cash(1000)
+- Negative amount (operating expense — rent, payroll, subscriptions, utilities, fees): DR Expenses(5000) / CR Cash(1000)
+
+Return ONLY a valid JSON array with no markdown or explanation:
+[{"date":"YYYY-MM-DD","description":"original description","amount":0.00,"type":"credit or debit","debit_account":"1000","credit_account":"4000","journal_description":"Brief accounting note"}]"""
+
+
+@router.post("/bank-statement")
+async def upload_bank_statement(
+    file: UploadFile = File(...),
+):
+    filename = (file.filename or "").lower()
+    if not (filename.endswith(".csv") or filename.endswith(".pdf")):
+        raise HTTPException(status_code=400, detail="Only CSV and PDF files are supported")
+
+    content = await file.read()
+    raw_transactions = []
+
+    if filename.endswith(".csv"):
+        text = content.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+        for row in reader:
+            date_val = row.get("Date") or row.get("date") or ""
+            desc_val = row.get("Description") or row.get("description") or row.get("Memo") or ""
+            amount_str = row.get("Amount") or row.get("amount") or "0"
+            try:
+                amount = float(str(amount_str).replace(",", "").replace("$", ""))
+            except ValueError:
+                continue
+            if date_val.strip():
+                raw_transactions.append({
+                    "date": date_val.strip(),
+                    "description": desc_val.strip(),
+                    "amount": amount,
+                })
+    else:
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            text_lines = []
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_lines.extend(page_text.split("\n"))
+        pattern = re.compile(
+            r"(\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4})\s+(.+?)\s+([-]?\$?[\d,]+\.\d{2})\s*$"
+        )
+        for line in text_lines:
+            m = pattern.search(line)
+            if m:
+                try:
+                    amount = float(m.group(3).replace(",", "").replace("$", ""))
+                    raw_transactions.append({
+                        "date": m.group(1),
+                        "description": m.group(2).strip(),
+                        "amount": amount,
+                    })
+                except ValueError:
+                    continue
+
+    if not raw_transactions:
+        raise HTTPException(status_code=400, detail="No transactions found in the uploaded file")
+
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=4096,
+        system=_BANK_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": f"Classify these transactions:\n{json.dumps(raw_transactions, indent=2)}"}],
+    )
+
+    response_text = message.content[0].text.strip()
+    response_text = re.sub(r"^```(?:json)?\n?", "", response_text)
+    response_text = re.sub(r"\n?```$", "", response_text)
+
+    try:
+        classified = json.loads(response_text)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse AI classification response")
+
+    total_credits = sum(t.get("amount", 0) for t in classified if t.get("amount", 0) >= 0)
+    total_debits = sum(abs(t.get("amount", 0)) for t in classified if t.get("amount", 0) < 0)
+
+    return {
+        "transactions": classified,
+        "count": len(classified),
+        "total_credits": round(total_credits, 2),
+        "total_debits": round(total_debits, 2),
+    }
+
+
+@router.post("/bank-statement/confirm")
+def confirm_bank_statement(
+    body: BankStatementConfirm,
+    session: Session = Depends(get_session),
+):
+    posted = 0
+    for txn in body.transactions:
+        try:
+            entry_date_parsed = date.fromisoformat(txn.date)
+        except ValueError:
+            entry_date_parsed = date.today()
+
+        amount = abs(txn.amount)
+        post_journal_entry(
+            session=session,
+            entry_date=entry_date_parsed,
+            description=txn.description or txn.journal_description,
+            reference_type="bank_statement",
+            reference_id=0,
+            lines=[
+                {"account_code": txn.debit_account, "debit": amount, "credit": 0.0},
+                {"account_code": txn.credit_account, "debit": 0.0, "credit": amount},
+            ],
+        )
+        posted += 1
+
+    session.commit()
+    return {"posted": posted, "message": f"Successfully posted {posted} journal entries"}
