@@ -56,7 +56,11 @@ class InputValidationMiddleware(BaseHTTPMiddleware):
     EXEMPT_PATHS = {"/assistant/query"}
 
     # Paths that completely skip body consumption — FastAPI reads these directly
-    BYPASS_BODY_PATHS = {"/accounting/bank-statement/confirm"}
+    BYPASS_BODY_PATHS = {
+        "/accounting/bank-statement/confirm",
+        "/plaid/exchange-token",
+        "/plaid/link-token",
+    }
 
     async def dispatch(self, request: Request, call_next):
         """

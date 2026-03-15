@@ -301,3 +301,251 @@
 .acct-journal-pill.active .acct-journal-pill-count {
   background: rgba(255,255,255,0.25);
 }
+
+/* ── Plaid Connect UI ─────────────────────────────────── */
+.acct-plaid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.acct-plaid-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+.acct-plaid-connect-btn {
+  padding: 0.5rem 1.125rem;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.acct-plaid-connect-btn:hover { background: #4f46e5; }
+
+.acct-plaid-empty {
+  color: #64748b;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 1.5rem 0;
+  margin: 0;
+}
+
+.acct-plaid-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.acct-plaid-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.acct-plaid-account-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.acct-plaid-institution {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.9375rem;
+}
+.acct-plaid-account-name {
+  color: #475569;
+  font-size: 0.875rem;
+}
+.acct-plaid-gl-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 6px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: monospace;
+}
+.acct-plaid-fetch-btn {
+  padding: 0.4375rem 1rem;
+  background: #fff;
+  color: #6366f1;
+  border: 1.5px solid #6366f1;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.acct-plaid-fetch-btn:hover:not(:disabled) { background: #6366f1; color: #fff; }
+.acct-plaid-fetch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.acct-plaid-manual-toggle {
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.75rem;
+}
+.acct-plaid-manual-toggle:hover { color: #0f172a; }
+
+/* ── Confidence badges ─────────────────────────────────── */
+.acct-conf {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.acct-conf--high {
+  background: #dcfce7;
+  color: #15803d;
+}
+.acct-conf--low {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+/* Rule / Claude AI badges */
+.acct-badge-rule {
+  display: inline-block;
+  background: #ede9fe;
+  color: #6d28d9;
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct-badge-claude {
+  display: inline-block;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Flagged (low confidence) row */
+.acct-bank-row--flagged td {
+  background: #fefce8 !important;
+}
+
+/* Flagged note below confirm buttons */
+.acct-bank-flagged-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #a16207;
+  background: #fef9c3;
+  border-radius: 6px;
+  padding: 0.5rem 0.875rem;
+}
+
+/* Rules auto-categorized badge in meta bar */
+.acct-bank-rules-hit {
+  background: #ede9fe;
+  color: #6d28d9;
+  border-radius: 999px;
+  padding: 0.15rem 0.625rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ── Rules Tab ────────────────────────────────────────── */
+.acct-rules-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+}
+.acct-rules-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+.acct-rules-subtitle {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.acct-rule-form-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.acct-rule-form-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 1rem;
+}
+.acct-rule-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.875rem;
+  margin-bottom: 1rem;
+}
+.acct-rule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.acct-rule-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.acct-rule-field input,
+.acct-rule-field select {
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #0f172a;
+  background: #fff;
+}
+.acct-rule-field input:focus,
+.acct-rule-field select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+.acct-rule-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.acct-rule-action-btn {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+.acct-rule-action-btn:hover { background: #f1f5f9; }
+.acct-rule-action-btn--delete:hover { background: #fee2e2; border-color: #fca5a5; }

@@ -13,6 +13,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.60.0",
+    "react-plaid-link": "^4.1.1",
     "react-router-dom": "^7.6.3",
     "react-scripts": "^5.0.1",
     "recharts": "^3.8.0",

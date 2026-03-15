@@ -5,6 +5,58 @@ from pydantic import field_validator
 from datetime import date, datetime
 
 
+# ── Category Rules ─────────────────────────────────────────────────────────────
+
+class CategoryRule(SQLModel, table=True):
+    __tablename__ = "category_rule"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    company_id: Optional[int] = Field(default=None, foreign_key="company.id", index=True)
+    name: str                                   # "AWS Cloud Expenses"
+    match_type: str = Field(default="contains") # contains | starts_with | exact | regex
+    match_value: str                            # "AWS" — matched against description (case-insensitive)
+    debit_account: str                          # GL code e.g. "5000"
+    credit_account: str                         # GL code e.g. "1000"
+    category_label: Optional[str] = None        # "Software & Cloud"
+    priority: int = Field(default=100)          # lower = applied first
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+
+# ── Company & Bank Account Models ──────────────────────────────────────────────
+
+class Company(SQLModel, table=True):
+    __tablename__ = "company"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str                                           # "SmartInvoiceInc"
+    tax_id: Optional[str] = None                        # EIN
+    address: Optional[str] = None
+    email: Optional[str] = None
+    fiscal_year_start: int = Field(default=1)           # month number (1=January)
+    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+
+    bank_accounts: List["BankAccount"] = Relationship(back_populates="company")
+
+
+class BankAccount(SQLModel, table=True):
+    __tablename__ = "bank_account"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    company_id: int = Field(foreign_key="company.id", index=True)
+    institution_name: str                               # "Chase"
+    account_name: str                                   # "Business Checking"
+    masked_number: Optional[str] = None                 # "****4521"
+    plaid_access_token: Optional[str] = None            # stored securely
+    plaid_account_id: Optional[str] = None              # Plaid's account identifier
+    plaid_item_id: Optional[str] = None
+    gl_account_code: str = Field(default="1000")        # maps to ChartOfAccount.code
+    is_active: bool = Field(default=True)
+    connected_at: Optional[datetime] = None
+
+    company: Optional[Company] = Relationship(back_populates="bank_accounts")
+
+
 # ── Accounting Models ──────────────────────────────────────────────────────────
 
 class ChartOfAccount(SQLModel, table=True):

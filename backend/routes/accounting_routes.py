@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select, func
 
 from database import get_session
-from models import ChartOfAccount, JournalEntry, JournalLine
+from models import BankAccount, CategoryRule, ChartOfAccount, JournalEntry, JournalLine
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 
@@ -38,14 +38,19 @@ class BankTransaction(BaseModel):
     date: str
     description: str
     amount: float
-    type: str                   # credit | debit
-    debit_account: str          # account code e.g. "1000"
+    type: str                           # credit | debit
+    debit_account: str                  # account code e.g. "1000"
     credit_account: str
     journal_description: str
+    confidence: float = 1.0             # 0.0–1.0; rules always = 1.0
+    rule_matched: Optional[str] = None  # rule name if matched by rule
 
 
 class BankStatementConfirm(BaseModel):
     transactions: List[BankTransaction]
+    bank_account_id: Optional[int] = None   # If set, use that BankAccount's GL code as cash
+
+CONFIDENCE_THRESHOLD = 0.95
 
 
 class JournalEntryCreate(BaseModel):
@@ -392,6 +397,51 @@ def get_pl_summary(session: Session = Depends(get_session)):
 
 # ── Bank Statement Upload ───────────────────────────────────────────────────────
 
+def apply_category_rules(raw_transactions: list, session: Session):
+    """
+    Split transactions into rule-matched and unmatched (needs Claude).
+    Rule-matched get confidence=1.0; unmatched go to Claude.
+    """
+    import re as _re
+    rules = session.exec(
+        select(CategoryRule)
+        .where(CategoryRule.is_active == True)
+        .order_by(CategoryRule.priority)
+    ).all()
+
+    matched, unmatched = [], []
+    for txn in raw_transactions:
+        desc = (txn.get("description") or "").lower()
+        rule_hit = None
+        for rule in rules:
+            val = rule.match_value.lower()
+            if rule.match_type == "contains" and val in desc:
+                rule_hit = rule
+            elif rule.match_type == "starts_with" and desc.startswith(val):
+                rule_hit = rule
+            elif rule.match_type == "exact" and desc == val:
+                rule_hit = rule
+            elif rule.match_type == "regex":
+                if _re.search(val, desc, _re.IGNORECASE):
+                    rule_hit = rule
+            if rule_hit:
+                break
+
+        if rule_hit:
+            matched.append({
+                **txn,
+                "debit_account": rule_hit.debit_account,
+                "credit_account": rule_hit.credit_account,
+                "journal_description": rule_hit.category_label or rule_hit.name,
+                "type": "credit" if rule_hit.debit_account.startswith("1") else "debit",
+                "confidence": 1.0,
+                "rule_matched": rule_hit.name,
+            })
+        else:
+            unmatched.append(txn)
+    return matched, unmatched
+
+
 _BANK_SYSTEM_PROMPT = """You are a bookkeeping AI. Classify bank statement transactions using double-entry accounting.
 
 Chart of Accounts:
@@ -407,13 +457,16 @@ Rules:
 - Negative amount (paying a supplier/vendor bill): DR AP(2000) / CR Cash(1000)
 - Negative amount (operating expense — rent, payroll, subscriptions, utilities, fees): DR Expenses(5000) / CR Cash(1000)
 
+Also return a "confidence" field (float 0.0–1.0) for each transaction indicating how certain you are about the GL classification. Be conservative — only give 0.95+ when the transaction type is completely unambiguous.
+
 Return ONLY a valid JSON array with no markdown or explanation:
-[{"date":"YYYY-MM-DD","description":"original description","amount":0.00,"type":"credit or debit","debit_account":"1000","credit_account":"4000","journal_description":"Brief accounting note"}]"""
+[{"date":"YYYY-MM-DD","description":"original description","amount":0.00,"type":"credit or debit","debit_account":"1000","credit_account":"4000","journal_description":"Brief accounting note","confidence":0.97}]"""
 
 
 @router.post("/bank-statement")
 async def upload_bank_statement(
     file: UploadFile = File(...),
+    session: Session = Depends(get_session),
 ):
     filename = (file.filename or "").lower()
     if not (filename.endswith(".csv") or filename.endswith(".pdf")):
@@ -465,31 +518,44 @@ async def upload_bank_statement(
     if not raw_transactions:
         raise HTTPException(status_code=400, detail="No transactions found in the uploaded file")
 
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=4096,
-        system=_BANK_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": f"Classify these transactions:\n{json.dumps(raw_transactions, indent=2)}"}],
-    )
+    # Apply category rules first — rule-matched skip Claude
+    rule_matched, needs_claude = apply_category_rules(raw_transactions, session)
 
-    response_text = message.content[0].text.strip()
-    response_text = re.sub(r"^```(?:json)?\n?", "", response_text)
-    response_text = re.sub(r"\n?```$", "", response_text)
+    claude_classified = []
+    if needs_claude:
+        client = anthropic.Anthropic()
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            system=_BANK_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": f"Classify these transactions:\n{json.dumps(needs_claude, indent=2)}"}],
+        )
+        response_text = message.content[0].text.strip()
+        response_text = re.sub(r"^```(?:json)?\n?", "", response_text)
+        response_text = re.sub(r"\n?```$", "", response_text)
+        try:
+            claude_classified = json.loads(response_text)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Failed to parse AI classification response")
+        # Ensure confidence field exists on all Claude results
+        for t in claude_classified:
+            t.setdefault("confidence", 0.80)
+            t.setdefault("rule_matched", None)
 
-    try:
-        classified = json.loads(response_text)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="Failed to parse AI classification response")
+    classified = rule_matched + claude_classified
 
-    total_credits = sum(t.get("amount", 0) for t in classified if t.get("amount", 0) >= 0)
-    total_debits = sum(abs(t.get("amount", 0)) for t in classified if t.get("amount", 0) < 0)
+    gl_code = "1000"
+    total_credits = sum(t.get("amount", 0) for t in classified if t.get("debit_account") == gl_code)
+    total_debits = sum(t.get("amount", 0) for t in classified if t.get("credit_account") == gl_code)
+    flagged = sum(1 for t in classified if t.get("confidence", 1.0) < CONFIDENCE_THRESHOLD)
 
     return {
         "transactions": classified,
         "count": len(classified),
         "total_credits": round(total_credits, 2),
         "total_debits": round(total_debits, 2),
+        "flagged_count": flagged,
+        "rule_matched_count": len(rule_matched),
     }
 
 
@@ -498,8 +564,29 @@ def confirm_bank_statement(
     body: BankStatementConfirm,
     session: Session = Depends(get_session),
 ):
+    # Determine cash GL code — use the connected BankAccount if provided
+    cash_gl_code = "1000"
+    if body.bank_account_id:
+        bank_account = session.get(BankAccount, body.bank_account_id)
+        if bank_account:
+            cash_gl_code = bank_account.gl_account_code
+
     posted = 0
+    skipped = 0
     for txn in body.transactions:
+        # Skip low-confidence transactions — require manual review
+        if txn.confidence < CONFIDENCE_THRESHOLD:
+            skipped += 1
+            continue
+
+        # Override debit/credit account to use the correct cash GL code
+        debit_account = txn.debit_account
+        credit_account = txn.credit_account
+        if body.bank_account_id:
+            if txn.debit_account == "1000":
+                debit_account = cash_gl_code
+            if txn.credit_account == "1000":
+                credit_account = cash_gl_code
         try:
             entry_date_parsed = date.fromisoformat(txn.date)
         except ValueError:
@@ -511,13 +598,16 @@ def confirm_bank_statement(
             entry_date=entry_date_parsed,
             description=txn.description or txn.journal_description,
             reference_type="bank_statement",
-            reference_id=0,
+            reference_id=body.bank_account_id or 0,
             lines=[
-                {"account_code": txn.debit_account, "debit": amount, "credit": 0.0},
-                {"account_code": txn.credit_account, "debit": 0.0, "credit": amount},
+                {"account_code": debit_account, "debit": amount, "credit": 0.0},
+                {"account_code": credit_account, "debit": 0.0, "credit": amount},
             ],
         )
         posted += 1
 
     session.commit()
-    return {"posted": posted, "message": f"Successfully posted {posted} journal entries"}
+    msg = f"Successfully posted {posted} journal entries."
+    if skipped:
+        msg += f" {skipped} transaction(s) skipped — confidence below 95%, manual review needed."
+    return {"posted": posted, "skipped_low_confidence": skipped, "message": msg}
