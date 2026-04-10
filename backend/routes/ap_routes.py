@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 from datetime import date, datetime
 from typing import List, Optional
@@ -13,6 +15,70 @@ from database import get_session
 from models import APInvoice, APLineItem, APPayment, APVendor
 from services.ap_extractor import extract_from_bytes
 from routes.accounting_routes import post_journal_entry
+
+# ── ML Extractor caller ────────────────────────────────────────────────────────
+# ML_EXTRACTOR_MODE controls how the semantic extractor is reached:
+#   "lambda" → invoke a separate Lambda container (current / student mode)
+#   "http"   → call an HTTP service URL (future ECS Fargate / App Runner)
+#   "local"  → skip ML extractor, use regex fallback directly (dev/offline)
+
+ML_EXTRACTOR_MODE     = os.getenv("ML_EXTRACTOR_MODE", "local")
+ML_EXTRACTOR_FUNCTION = os.getenv("ML_EXTRACTOR_FUNCTION", "ml-extractor-dev")
+ML_EXTRACTOR_URL      = os.getenv("ML_EXTRACTOR_URL", "http://localhost:8001")
+
+
+async def call_ml_extractor(pdf_bytes: bytes) -> dict:
+    """
+    Route PDF bytes to the semantic ML extractor.
+    Falls back to the local regex extractor on any failure.
+    """
+    if ML_EXTRACTOR_MODE == "lambda":
+        try:
+            client = boto3.client("lambda")
+            payload = json.dumps({"pdf_bytes": base64.b64encode(pdf_bytes).decode()})
+            response = client.invoke(
+                FunctionName=ML_EXTRACTOR_FUNCTION,
+                InvocationType="RequestResponse",
+                Payload=payload,
+            )
+            result = json.loads(response["Payload"].read())
+            if result.get("statusCode") == 200:
+                body = result["body"]
+                # Re-parse date strings back to date objects
+                for key in ("invoice_date", "due_date"):
+                    if body.get(key) and isinstance(body[key], str):
+                        try:
+                            body[key] = date.fromisoformat(body[key])
+                        except ValueError:
+                            body[key] = None
+                return body
+            print(f"[ML Extractor] Lambda returned status {result.get('statusCode')}, falling back")
+        except Exception as e:
+            print(f"[ML Extractor] Lambda invocation failed: {e}, falling back to regex")
+
+    elif ML_EXTRACTOR_MODE == "http":
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{ML_EXTRACTOR_URL}/extract",
+                    files={"file": ("invoice.pdf", pdf_bytes, "application/pdf")},
+                )
+                response.raise_for_status()
+                body = response.json()
+                for key in ("invoice_date", "due_date"):
+                    if body.get(key) and isinstance(body[key], str):
+                        try:
+                            body[key] = date.fromisoformat(body[key])
+                        except ValueError:
+                            body[key] = None
+                return body
+        except Exception as e:
+            print(f"[ML Extractor] HTTP call failed: {e}, falling back to regex")
+
+    # Fallback: local regex extractor (always available)
+    print("[ML Extractor] Using local regex extractor")
+    return extract_from_bytes(pdf_bytes)
 
 router = APIRouter(tags=["accounts-payable"])
 
@@ -242,7 +308,7 @@ async def upload_ap_invoice(
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
     pdf_bytes = await file.read()
-    extracted = extract_from_bytes(pdf_bytes)
+    extracted = await call_ml_extractor(pdf_bytes)
 
     import json as _json
     print("\n" + "="*60)
