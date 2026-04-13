@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useInvoice } from '../context/InvoiceContext';
+import { apiClient } from '../services/api';
 import CustomerForm from '../components/forms/CustomerForm';
 import InvoiceDetailsForm from '../components/forms/InvoiceDetailsForm';
 import LineItemsTable from '../components/tables/LineItemsTable';
@@ -136,6 +137,20 @@ const InvoicePage = () => {
     }
   };
 
+  // Status transitions — trigger auto journal entries on backend
+  const handleStatusChange = async (newStatus) => {
+    if (!currentInvoice.id) return;
+    const label = newStatus === 'submitted' ? 'Finalize' : 'Mark as Paid';
+    if (!window.confirm(`${label} Invoice #${currentInvoice.id}? This will post a journal entry to the ledger.`)) return;
+    try {
+      await saveInvoice({ ...currentInvoice, invoice_status: newStatus }, true);
+      alert(`Invoice #${currentInvoice.id} ${newStatus}. Journal entry posted to ledger.`);
+      navigate('/accounting');
+    } catch (err) {
+      alert(`Failed: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="invoice-page-loading">
@@ -174,6 +189,21 @@ const InvoicePage = () => {
                 : 'Create Invoice'
             }
           </Button>
+          {isEditing && currentInvoice.invoice_status === 'draft' && (
+            <Button variant="primary" onClick={() => handleStatusChange('submitted')} disabled={saving}>
+              Finalize → Ledger
+            </Button>
+          )}
+          {isEditing && currentInvoice.invoice_status === 'submitted' && (
+            <Button variant="primary" onClick={() => handleStatusChange('paid')} disabled={saving}>
+              Mark as Paid → Ledger
+            </Button>
+          )}
+          {isEditing && (
+            <Button variant="secondary" onClick={() => navigate('/accounting')} disabled={saving}>
+              View Ledger
+            </Button>
+          )}
         </div>
       </div>
 

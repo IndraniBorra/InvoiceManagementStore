@@ -58,3 +58,12 @@ frontend/invoicemanagement-app/public/models/*/*.onnx
 # Python virtualenv
 .venv/
 venv/
+
+# Local SQLite database (dev only)
+backend/database.db
+
+# Uploaded invoice PDFs (runtime data, not source)
+backend/uploads/
+
+# OS metadata
+**/.DS_Store

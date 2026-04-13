@@ -74,7 +74,17 @@ def post_journal_entry(
     """
     Create a balanced journal entry. Silently skips if accounts not found
     (avoids breaking existing workflows if COA not seeded yet).
+    Idempotent: skips if an entry with the same reference_type + reference_id already exists.
     """
+    existing = session.exec(
+        select(JournalEntry).where(
+            JournalEntry.reference_type == reference_type,
+            JournalEntry.reference_id == reference_id,
+        )
+    ).first()
+    if existing:
+        return  # already posted, skip duplicate
+
     entry = JournalEntry(
         entry_date=entry_date,
         description=description,

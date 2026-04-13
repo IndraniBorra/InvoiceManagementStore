@@ -1,5 +1,9 @@
+import base64
+import json
 import os
+import re as _re
 from datetime import date, datetime
+from difflib import SequenceMatcher
 from typing import List, Optional
 
 import boto3
@@ -10,9 +14,73 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from database import get_session
-from models import APInvoice, APLineItem, APPayment, APVendor
+from models import APInvoice, APLineItem, APPayment, APVendor, Company
 from services.ap_extractor import extract_from_bytes
 from routes.accounting_routes import post_journal_entry
+
+# ── ML Extractor caller ────────────────────────────────────────────────────────
+# ML_EXTRACTOR_MODE controls how the semantic extractor is reached:
+#   "lambda" → invoke a separate Lambda container (current / student mode)
+#   "http"   → call an HTTP service URL (future ECS Fargate / App Runner)
+#   "local"  → skip ML extractor, use regex fallback directly (dev/offline)
+
+ML_EXTRACTOR_MODE     = os.getenv("ML_EXTRACTOR_MODE", "local")
+ML_EXTRACTOR_FUNCTION = os.getenv("ML_EXTRACTOR_FUNCTION", "ml-extractor-dev")
+ML_EXTRACTOR_URL      = os.getenv("ML_EXTRACTOR_URL", "http://localhost:8001")
+
+
+async def call_ml_extractor(pdf_bytes: bytes) -> dict:
+    """
+    Route PDF bytes to the semantic ML extractor.
+    Falls back to the local regex extractor on any failure.
+    """
+    if ML_EXTRACTOR_MODE == "lambda":
+        try:
+            client = boto3.client("lambda")
+            payload = json.dumps({"pdf_bytes": base64.b64encode(pdf_bytes).decode()})
+            response = client.invoke(
+                FunctionName=ML_EXTRACTOR_FUNCTION,
+                InvocationType="RequestResponse",
+                Payload=payload,
+            )
+            result = json.loads(response["Payload"].read())
+            if result.get("statusCode") == 200:
+                body = result["body"]
+                # Re-parse date strings back to date objects
+                for key in ("invoice_date", "due_date"):
+                    if body.get(key) and isinstance(body[key], str):
+                        try:
+                            body[key] = date.fromisoformat(body[key])
+                        except ValueError:
+                            body[key] = None
+                return body
+            print(f"[ML Extractor] Lambda returned status {result.get('statusCode')}, falling back")
+        except Exception as e:
+            print(f"[ML Extractor] Lambda invocation failed: {e}, falling back to regex")
+
+    elif ML_EXTRACTOR_MODE == "http":
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{ML_EXTRACTOR_URL}/extract",
+                    files={"file": ("invoice.pdf", pdf_bytes, "application/pdf")},
+                )
+                response.raise_for_status()
+                body = response.json()
+                for key in ("invoice_date", "due_date"):
+                    if body.get(key) and isinstance(body[key], str):
+                        try:
+                            body[key] = date.fromisoformat(body[key])
+                        except ValueError:
+                            body[key] = None
+                return body
+        except Exception as e:
+            print(f"[ML Extractor] HTTP call failed: {e}, falling back to regex")
+
+    # Fallback: local regex extractor (always available)
+    print("[ML Extractor] Using local regex extractor")
+    return extract_from_bytes(pdf_bytes)
 
 router = APIRouter(tags=["accounts-payable"])
 
@@ -107,7 +175,30 @@ class APRejectRequest(BaseModel):
     notes: str
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _check_bill_to(bill_to_name: Optional[str], session: Session) -> dict:
+    """Fuzzy-match the extracted Bill To name against the company on record."""
+    company = session.exec(select(Company)).first()
+    company_name = company.name if company else None
+    if not company_name or not bill_to_name:
+        return {"matched": None, "score": None, "company_name": company_name}
+    score = SequenceMatcher(
+        None,
+        _normalize_vendor_name(bill_to_name),
+        _normalize_vendor_name(company_name),
+    ).ratio()
+    return {"matched": score >= 0.6, "score": round(score, 2), "company_name": company_name}
+
+
+def _normalize_vendor_name(name: str) -> str:
+    """Lowercase, strip punctuation and common legal suffixes for fuzzy matching."""
+    s = name.lower().strip()
+    s = _re.sub(r"[^\w\s]", "", s)
+    s = _re.sub(r"\s+", " ", s)
+    s = _re.sub(r"\b(llc|ltd|inc|corp|co|pvt|plc|limited|incorporated)\b", "", s).strip()
+    return s
+
 
 def _find_or_create_vendor(
     email_from: str,
@@ -117,16 +208,49 @@ def _find_or_create_vendor(
     vendor_address: Optional[str] = None,
 ) -> Optional[APVendor]:
     """
-    Match existing vendor by extracted email.
-    If not found, create a new vendor with all available data.
+    Match existing vendor using a 4-step chain:
+      1. Exact email match
+      2. Exact normalized name match
+      3. Fuzzy name match (≥ 0.85 similarity)
+      4. Create new vendor
     """
     lookup_email = email_from or vendor_email
+
+    # Step 1: exact email
     if lookup_email:
         vendor = session.exec(select(APVendor).where(APVendor.vendor_email == lookup_email)).first()
         if vendor:
             return vendor
+
+    # Steps 2 & 3: name-based matching
+    if vendor_name:
+        norm_input = _normalize_vendor_name(vendor_name)
+        all_vendors = session.exec(select(APVendor)).all()
+        best_match: Optional[APVendor] = None
+        best_score = 0.0
+        for v in all_vendors:
+            if not v.vendor_name:
+                continue
+            norm_existing = _normalize_vendor_name(v.vendor_name)
+            if norm_input == norm_existing:
+                # Update email if vendor didn't have one before
+                if lookup_email and not v.vendor_email:
+                    v.vendor_email = lookup_email
+                    session.add(v)
+                return v
+            score = SequenceMatcher(None, norm_input, norm_existing).ratio()
+            if score > best_score:
+                best_score, best_match = score, v
+        if best_match and best_score >= 0.85:
+            if lookup_email and not best_match.vendor_email:
+                best_match.vendor_email = lookup_email
+                session.add(best_match)
+            return best_match
+
     if not vendor_name:
         return None
+
+    # Step 4: create new
     vendor = APVendor(
         vendor_name=vendor_name,
         vendor_email=lookup_email or None,
@@ -174,6 +298,7 @@ def _build_ap_invoice_from_extraction(
         email_from=email_from,
         email_received_at=email_received_at,
         extraction_confidence=extracted.get("confidence"),
+        field_confidence=json.dumps(extracted.get("field_confidence") or {}),
     )
     session.add(invoice)
     session.flush()  # get invoice.id
@@ -242,7 +367,7 @@ async def upload_ap_invoice(
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
     pdf_bytes = await file.read()
-    extracted = extract_from_bytes(pdf_bytes)
+    extracted = await call_ml_extractor(pdf_bytes)
 
     import json as _json
     print("\n" + "="*60)
@@ -273,17 +398,28 @@ async def upload_ap_invoice(
     session.commit()
     session.refresh(invoice)
 
+    bill_to_check = _check_bill_to(extracted.get("bill_to_name"), session)
+
     return {
         "id": invoice.id,
         "status": invoice.status,
         "extraction_confidence": invoice.extraction_confidence,
+        "bill_to_check": bill_to_check,
         "extracted": {
-            "invoice_number": invoice.invoice_number,
-            "invoice_date":   str(invoice.invoice_date) if invoice.invoice_date else None,
-            "due_date":       str(invoice.due_date) if invoice.due_date else None,
-            "total_amount":   invoice.total_amount,
-            "currency":       invoice.currency,
-            "vendor_name":    extracted.get("vendor_name"),
+            "invoice_number":  invoice.invoice_number,
+            "invoice_date":    str(invoice.invoice_date) if invoice.invoice_date else None,
+            "due_date":        str(invoice.due_date) if invoice.due_date else None,
+            "total_amount":    invoice.total_amount,
+            "currency":        invoice.currency,
+            "vendor_name":     extracted.get("vendor_name"),
+            "vendor_email":    extracted.get("vendor_email"),
+            "bill_to_name":    extracted.get("bill_to_name"),
+            "bill_to_address": extracted.get("bill_to_address"),
+            "payment_terms":   extracted.get("payment_terms"),
+            "subtotal":        extracted.get("subtotal"),
+            "tax_amount":      extracted.get("tax_amount"),
+            "po_number":       extracted.get("po_number"),
+            "field_confidence": extracted.get("field_confidence", {}),
         },
     }
 
@@ -350,6 +486,7 @@ def get_ap_invoice(invoice_id: int, session: Session = Depends(get_session)):
         "email_received_at": invoice.email_received_at.isoformat() if invoice.email_received_at else None,
         "pdf_filename": invoice.pdf_filename,
         "extraction_confidence": invoice.extraction_confidence,
+        "field_confidence": json.loads(invoice.field_confidence) if invoice.field_confidence else None,
         "notes":        invoice.notes,
         "created_at":   invoice.created_at.isoformat(),
         "overdue": (
