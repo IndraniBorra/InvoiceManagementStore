@@ -7,6 +7,22 @@ const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const fmt = (n) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n ?? 0);
 
+const confColor = (score) => {
+  if (score >= 0.85) return '#16a34a';
+  if (score >= 0.5)  return '#ca8a04';
+  return '#dc2626';
+};
+
+const ConfidenceNote = ({ score }) => {
+  if (score == null || isNaN(score)) return null;
+  return (
+    <em style={{ display: 'block', fontSize: '10px', fontStyle: 'italic', marginTop: 3, color: confColor(score), fontWeight: 300 }}>
+      conf: {score.toFixed(1)}
+    </em>
+  );
+};
+
+
 const StatusBadge = ({ status, overdue }) => {
   if (overdue) return <span className="ap-badge ap-badge--overdue">Overdue</span>;
   const map = { pending_review: ['pending','Pending Review'], approved: ['approved','Approved'], paid: ['paid','Paid'], rejected: ['rejected','Rejected'] };
@@ -42,6 +58,11 @@ const APInvoiceDetail = () => {
   // Reject modal state
   const [rejectNotes, setRejectNotes] = useState('');
 
+  // Upload result: field confidence + bill-to check (set once from sessionStorage)
+  const [fieldConfidence, setFieldConfidence] = useState(null);
+  const [billToCheck, setBillToCheck]         = useState(null);
+  const [uploadExtracted, setUploadExtracted] = useState(null);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -63,6 +84,7 @@ const APInvoiceDetail = () => {
       });
       setLineItems(inv.line_items || []);
       setPayForm(prev => ({ ...prev, payment_amount: String(inv.total_amount || '') }));
+      if (inv.field_confidence) setFieldConfidence(inv.field_confidence);
     } catch (e) {
       console.error(e);
     } finally {
@@ -71,6 +93,23 @@ const APInvoiceDetail = () => {
   };
 
   useEffect(() => { load(); }, [id]);
+
+  // Read upload result from sessionStorage (set by APInvoiceList after upload).
+  // Note: we don't remove the key here — React 18 StrictMode double-invokes effects,
+  // which would delete the data on mount-1 and find nothing on mount-2 (causing null state).
+  // The key is per-invoice-id so it won't bleed across invoices.
+  useEffect(() => {
+    const key = `ap_upload_${id}`;
+    const stored = sessionStorage.getItem(key);
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        setFieldConfidence(data.extracted?.field_confidence || null);
+        setBillToCheck(data.bill_to_check || null);
+        setUploadExtracted(data.extracted || null);
+      } catch (_) {}
+    }
+  }, [id]);
 
   // Fetch PDF as blob to avoid X-Frame-Options cross-origin blocking
   useEffect(() => {
@@ -181,6 +220,9 @@ const APInvoiceDetail = () => {
         <button className="ap-btn ap-btn--outline" onClick={handleSave} disabled={saving} style={{ marginLeft: 'auto' }}>
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
+        <button className="ap-btn ap-btn--outline" onClick={() => navigate('/accounting')}>
+          View Ledger
+        </button>
       </div>
 
       {/* Main grid: PDF left, form right */}
@@ -201,6 +243,15 @@ const APInvoiceDetail = () => {
 
         {/* Form panel */}
         <div className="ap-detail-panel">
+          {/* Bill-to mismatch warning */}
+          {billToCheck?.matched === false && (
+            <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 6,
+                          padding: '10px 14px', marginBottom: 12, color: '#92400e', fontSize: 13 }}>
+              ⚠ <strong>Bill To "{uploadExtracted?.bill_to_name}"</strong> doesn't match your company{' '}
+              <strong>"{billToCheck.company_name}"</strong>. Verify this invoice is addressed to you before approving.
+            </div>
+          )}
+
           {/* Vendor */}
           <div className="ap-field-card">
             <h3>Vendor</h3>
@@ -210,6 +261,7 @@ const APInvoiceDetail = () => {
                 <option value="">— unassigned —</option>
                 {vendors.map(v => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
               </select>
+              <ConfidenceNote score={fieldConfidence?.vendor_name} />
             </div>
           </div>
 
@@ -220,6 +272,7 @@ const APInvoiceDetail = () => {
               <div>
                 <label className="ap-field-label">Invoice Number</label>
                 <input className="ap-field-input" value={form.invoice_number} onChange={e => setForm(f => ({...f, invoice_number: e.target.value}))} />
+                <ConfidenceNote score={fieldConfidence?.invoice_number} />
               </div>
               <div>
                 <label className="ap-field-label">Currency</label>
@@ -228,14 +281,17 @@ const APInvoiceDetail = () => {
               <div>
                 <label className="ap-field-label">Invoice Date</label>
                 <input type="date" className="ap-field-input" value={form.invoice_date} onChange={e => setForm(f => ({...f, invoice_date: e.target.value}))} />
+                <ConfidenceNote score={fieldConfidence?.invoice_date} />
               </div>
               <div>
                 <label className="ap-field-label">Due Date</label>
                 <input type="date" className="ap-field-input" value={form.due_date} onChange={e => setForm(f => ({...f, due_date: e.target.value}))} />
+                <ConfidenceNote score={fieldConfidence?.due_date} />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className="ap-field-label">Total Amount</label>
                 <input type="number" className="ap-field-input" value={form.total_amount} onChange={e => setForm(f => ({...f, total_amount: e.target.value}))} />
+                <ConfidenceNote score={fieldConfidence?.total_amount} />
               </div>
             </div>
           </div>
@@ -248,14 +304,22 @@ const APInvoiceDetail = () => {
                 <table className="ap-table">
                   <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
                   <tbody>
-                    {lineItems.map((li, i) => (
-                      <tr key={i}>
-                        <td><input className="ap-field-input" value={li.description || ''} onChange={e => updateLineItem(i, 'description', e.target.value)} /></td>
-                        <td><input type="number" className="ap-field-input" style={{ width: 70 }} value={li.quantity ?? ''} onChange={e => updateLineItem(i, 'quantity', e.target.value)} /></td>
-                        <td><input type="number" className="ap-field-input" style={{ width: 90 }} value={li.unit_price ?? ''} onChange={e => updateLineItem(i, 'unit_price', e.target.value)} /></td>
-                        <td><input type="number" className="ap-field-input" style={{ width: 90 }} value={li.line_total ?? ''} onChange={e => updateLineItem(i, 'line_total', e.target.value)} /></td>
-                      </tr>
-                    ))}
+                    {lineItems.map((li, i) => {
+                      const filled = [li.description, li.quantity, li.unit_price, li.line_total]
+                        .filter(v => v != null && v !== '' && v !== undefined).length;
+                      const liConf = filled / 4;
+                      return (
+                        <tr key={i}>
+                          <td>
+                            <input className="ap-field-input" value={li.description || ''} onChange={e => updateLineItem(i, 'description', e.target.value)} />
+                            <em style={{ fontSize: '10px', fontStyle: 'italic', marginTop: 2, display: 'block', color: confColor(liConf), fontWeight: 300 }}>conf: {liConf.toFixed(1)}</em>
+                          </td>
+                          <td><input type="number" className="ap-field-input" style={{ width: 70 }} value={li.quantity ?? ''} onChange={e => updateLineItem(i, 'quantity', e.target.value)} /></td>
+                          <td><input type="number" className="ap-field-input" style={{ width: 90 }} value={li.unit_price ?? ''} onChange={e => updateLineItem(i, 'unit_price', e.target.value)} /></td>
+                          <td><input type="number" className="ap-field-input" style={{ width: 90 }} value={li.line_total ?? ''} onChange={e => updateLineItem(i, 'line_total', e.target.value)} /></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

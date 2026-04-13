@@ -135,6 +135,7 @@ class APInvoice(SQLModel, table=True):
     email_received_at: Optional[datetime] = None
     pdf_filename: Optional[str] = None
     extraction_confidence: Optional[float] = None
+    field_confidence: Optional[str] = None  # JSON dict stored as string
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

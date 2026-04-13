@@ -38,7 +38,7 @@ STANDARD_FIELDS: dict[str, list[str]] = {
 
     # Line Items
     "description":         ["description", "item", "service", "details", "product", "particulars", "desc", "item description", "service description"],
-    "quantity":            ["quantity", "qty", "units", "count", "pcs", "nos", "number of units"],
+    "quantity":            ["quantity", "qty", "units", "count", "pcs", "nos", "number of units", "hours", "hrs", "days"],
     "item_number":         ["item number", "item no", "part number", "part no", "sku", "product code", "item code"],
     "uom":                 ["uom", "unit of measure", "unit", "measure", "unit type"],
 
