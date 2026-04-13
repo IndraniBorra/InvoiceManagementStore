@@ -1,0 +1,30 @@
+{
+  "action_classes": {
+    "view_invoice": 0,
+    "list_invoices": 1,
+    "create_invoice": 2,
+    "edit_invoice": 3,
+    "list_customers": 4,
+    "list_products": 5,
+    "show_reports": 6,
+    "overdue_invoices": 7,
+    "help": 8,
+    "create_product_with_data": 9,
+    "create_customer_with_data": 10,
+    "create_invoice_with_data": 11
+  },
+  "label_to_action": {
+    "0": "view_invoice",
+    "1": "list_invoices",
+    "2": "create_invoice",
+    "3": "edit_invoice",
+    "4": "list_customers",
+    "5": "list_products",
+    "6": "show_reports",
+    "7": "overdue_invoices",
+    "8": "help",
+    "9": "create_product_with_data",
+    "10": "create_customer_with_data",
+    "11": "create_invoice_with_data"
+  }
+}
