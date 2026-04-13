@@ -40,7 +40,8 @@ const APInvoiceDetail = () => {
   const [saving, setSaving]           = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  const [pdfBlobUrl, setPdfBlobUrl]   = useState(null);
+  const [pdfError, setPdfError]       = useState(false);
 
   // Editable form state
   const [form, setForm] = useState({
@@ -115,9 +116,14 @@ const APInvoiceDetail = () => {
   useEffect(() => {
     if (!invoice?.pdf_filename) return;
     let url;
+    setPdfError(false);
     apiClient.get(`/ap/invoice/${id}/pdf`, { responseType: 'blob' })
-      .then(res => { url = URL.createObjectURL(res.data); setPdfBlobUrl(url); })
-      .catch(() => {});
+      .then(res => {
+        if (!res.data || res.data.size === 0) { setPdfError(true); return; }
+        url = URL.createObjectURL(res.data);
+        setPdfBlobUrl(url);
+      })
+      .catch(() => setPdfError(true));
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [invoice?.pdf_filename, id]);
 
@@ -185,6 +191,13 @@ const APInvoiceDetail = () => {
   const canReject  = invoice.status !== 'paid';
   const canPay     = invoice.status === 'approved';
 
+  // When no stored field_confidence, derive presence-based score from actual form values
+  const conf = (key) => {
+    if (fieldConfidence && fieldConfidence[key] != null) return fieldConfidence[key];
+    const val = form[key] ?? invoice[key];
+    return (val != null && val !== '') ? 1.0 : 0.0;
+  };
+
   return (
     <div className="ap-page">
       {/* Header */}
@@ -231,6 +244,14 @@ const APInvoiceDetail = () => {
         <div className="ap-pdf-frame">
           {pdfBlobUrl ? (
             <iframe src={pdfBlobUrl} title="Invoice PDF" />
+          ) : pdfError ? (
+            <div className="ap-pdf-placeholder">
+              <p style={{ fontSize: '2rem' }}>⚠️</p>
+              <p style={{ fontWeight: 600 }}>PDF not available</p>
+              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                The file may have expired on the server.<br />Re-upload the invoice to view it.
+              </p>
+            </div>
           ) : invoice.pdf_filename ? (
             <div className="ap-pdf-placeholder"><p style={{ fontSize: '2rem' }}>⏳</p><p>Loading PDF…</p></div>
           ) : (
@@ -261,7 +282,7 @@ const APInvoiceDetail = () => {
                 <option value="">— unassigned —</option>
                 {vendors.map(v => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
               </select>
-              <ConfidenceNote score={fieldConfidence?.vendor_name} />
+              <ConfidenceNote score={conf('vendor_id')} />
             </div>
           </div>
 
@@ -272,7 +293,7 @@ const APInvoiceDetail = () => {
               <div>
                 <label className="ap-field-label">Invoice Number</label>
                 <input className="ap-field-input" value={form.invoice_number} onChange={e => setForm(f => ({...f, invoice_number: e.target.value}))} />
-                <ConfidenceNote score={fieldConfidence?.invoice_number} />
+                <ConfidenceNote score={conf('invoice_number')} />
               </div>
               <div>
                 <label className="ap-field-label">Currency</label>
@@ -281,17 +302,17 @@ const APInvoiceDetail = () => {
               <div>
                 <label className="ap-field-label">Invoice Date</label>
                 <input type="date" className="ap-field-input" value={form.invoice_date} onChange={e => setForm(f => ({...f, invoice_date: e.target.value}))} />
-                <ConfidenceNote score={fieldConfidence?.invoice_date} />
+                <ConfidenceNote score={conf('invoice_date')} />
               </div>
               <div>
                 <label className="ap-field-label">Due Date</label>
                 <input type="date" className="ap-field-input" value={form.due_date} onChange={e => setForm(f => ({...f, due_date: e.target.value}))} />
-                <ConfidenceNote score={fieldConfidence?.due_date} />
+                <ConfidenceNote score={conf('due_date')} />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className="ap-field-label">Total Amount</label>
                 <input type="number" className="ap-field-input" value={form.total_amount} onChange={e => setForm(f => ({...f, total_amount: e.target.value}))} />
-                <ConfidenceNote score={fieldConfidence?.total_amount} />
+                <ConfidenceNote score={conf('total_amount')} />
               </div>
             </div>
           </div>
