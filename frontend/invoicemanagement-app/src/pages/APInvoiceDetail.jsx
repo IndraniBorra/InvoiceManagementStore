@@ -119,8 +119,11 @@ const APInvoiceDetail = () => {
     setPdfError(false);
     apiClient.get(`/ap/invoice/${id}/pdf`, { responseType: 'blob' })
       .then(res => {
-        if (!res.data || res.data.size === 0) { setPdfError(true); return; }
-        url = URL.createObjectURL(res.data);
+        const blob = res.data;
+        if (!blob || blob.size === 0 || !blob.type.includes('pdf')) {
+          setPdfError(true); return;
+        }
+        url = URL.createObjectURL(blob);
         setPdfBlobUrl(url);
       })
       .catch(() => setPdfError(true));
