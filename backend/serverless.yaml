@@ -104,6 +104,28 @@ custom:
     dockerizePip: true
     invalidateCache: true
     useStaticCache: true
+    slim: true
+    slimPatterns:
+      - '**/*.py[c|o]'
+      - '**/__pycache__*'
+      - '**/*.dist-info*'
+      - '**/*.egg-info*'
+      - '**/tests/**'
+      - '**/test/**'
+      - '**/docs/**'
+      - '**/examples/**'
+      - '**/benchmarks/**'
+      - 'numpy/core/tests/**'
+      - 'pandas/tests/**'
+      - 'scipy/*/tests/**'
+      - 'sklearn/*/tests/**'
+      - 'statsmodels/*/tests/**'
+      - 'xgboost/testing/**'
+    noDeploy:
+      - pytest
+      - coverage
+      - black
+      - flake8
     layer:
       name: smartinvoice-deps-${self:provider.stage}
       description: Python dependencies for SmartInvoice
