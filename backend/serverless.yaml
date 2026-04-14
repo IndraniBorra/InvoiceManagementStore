@@ -1,12 +1,8 @@
 org: indrani
 service: invoicemanagement-backend
 
-plugins:
-  - serverless-python-requirements
-
 provider:
   name: aws
-  runtime: python3.12
   stage: ${opt:stage, "dev"}
   region: us-east-1
   deploymentBucket:
@@ -80,66 +76,11 @@ provider:
     DEBUG_MODE: ${env:DEBUG_MODE, "false"}
 
 
-package:
-  exclude:
-    - Makefile
-    - poetry.lock
-    - README.md
-    - tests/**
-    - docs/**
-    - node_modules/**
-    - .venv/**
-    - .serverless/**
-    - package.json
-    - package-lock.json
-    - .pytest_cache
-    - .hypothesis
-    - __pycache__/**
-    - uploads/**
-    - database.db
-
-
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    invalidateCache: true
-    useStaticCache: true
-    slim: true
-    slimPatterns:
-      - '**/*.py[c|o]'
-      - '**/__pycache__*'
-      - '**/*.dist-info*'
-      - '**/*.egg-info*'
-      - '**/tests/**'
-      - '**/test/**'
-      - '**/docs/**'
-      - '**/examples/**'
-      - '**/benchmarks/**'
-      - 'numpy/core/tests/**'
-      - 'pandas/tests/**'
-      - 'scipy/*/tests/**'
-      - 'sklearn/*/tests/**'
-      - 'statsmodels/*/tests/**'
-      - 'xgboost/testing/**'
-    noDeploy:
-      - pytest
-      - coverage
-      - black
-      - flake8
-    layer:
-      name: smartinvoice-deps-${self:provider.stage}
-      description: Python dependencies for SmartInvoice
-      compatibleRuntimes:
-        - python3.12
-
-
 functions:
   main:
-    handler: main.handler
+    image: ${env:IMAGE_URI}
     timeout: 30
     memorySize: 512
-    layers:
-      - { Ref: PythonRequirementsLambdaLayer }
     events:
       - http:
           method: any

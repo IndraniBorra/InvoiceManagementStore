@@ -17,11 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - name: Set up Node.js (for Serverless Framework)
         uses: actions/setup-node@v4
         with:
@@ -34,16 +29,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Get AWS Account ID
+        run: echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names smartinvoice-backend-dev 2>/dev/null || \
+          aws ecr create-repository --repository-name smartinvoice-backend-dev
+
+      - name: Log in to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | \
+          docker login --username AWS --password-stdin \
+          ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Build and push Docker image
+        working-directory: backend
+        run: |
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/smartinvoice-backend-dev:latest
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+
       - name: Install Serverless Framework
         run: npm install -g serverless
-
-      - name: Install Serverless plugins
-        working-directory: backend
-        run: npm install
 
       - name: Deploy
         working-directory: backend
         env:
+          IMAGE_URI: ${{ env.IMAGE_URI }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
