@@ -120,13 +120,18 @@ const APInvoiceDetail = () => {
     apiClient.get(`/ap/invoice/${id}/pdf`, { responseType: 'blob' })
       .then(res => {
         const blob = res.data;
+        console.log('[PDF] fetch response:', { status: res.status, type: blob?.type, size: blob?.size });
         if (!blob || blob.size === 0 || !blob.type.includes('pdf')) {
+          console.warn('[PDF] blob is not a valid PDF — type:', blob?.type, 'size:', blob?.size);
           setPdfError(true); return;
         }
         url = URL.createObjectURL(blob);
         setPdfBlobUrl(url);
       })
-      .catch(() => setPdfError(true));
+      .catch(err => {
+        console.error('[PDF] fetch failed:', err?.response?.status, err?.message);
+        setPdfError(true);
+      });
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [invoice?.pdf_filename, id]);
 

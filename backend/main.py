@@ -194,4 +194,5 @@ app.include_router(plaid_router)
 app.include_router(category_rules_router)
 
 # Lambda handler for serverless deployment
-handler = Mangum(app)
+# lifespan="off" avoids ASGI lifespan issues on Lambda
+handler = Mangum(app, lifespan="off")

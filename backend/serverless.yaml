@@ -12,6 +12,12 @@ provider:
   deploymentBucket:
     name: cf-templates--embz8ioxogig-us-east-1
 
+  # ── Binary Media Types (required for PDF responses through API Gateway) ──────
+  apiGateway:
+    binaryMediaTypes:
+      - 'application/pdf'
+      - '*/*'
+
   # ── X-Ray Tracing ────────────────────────────────────────────────────────────
   tracing:
     lambda: true
