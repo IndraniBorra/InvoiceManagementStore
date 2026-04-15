@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { apiClient } from '../services/api';
 import useLLMNavigation from '../hooks/useLLMNavigation';
 import './LLMAssistant.css';
-
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const LLMAssistant = () => {
   const [messages, setMessages] = useState([]);
@@ -81,7 +79,7 @@ const LLMAssistant = () => {
     setIsLoading(true);
 
     try {
-      const { data } = await axios.post(`${API_BASE}/assistant/query`, {
+      const { data } = await apiClient.post('/assistant/query', {
         query,
         conversation_history: conversationHistoryRef.current,
       });
@@ -144,7 +142,7 @@ const LLMAssistant = () => {
   const handleDeleteConfirm = async (invoiceId) => {
     addMessage('system', `🗑️ Deleting invoice #${invoiceId}...`);
     try {
-      await axios.delete(`${API_BASE}/invoice/${invoiceId}`);
+      await apiClient.delete(`/invoice/${invoiceId}`);
       addMessage('assistant', `✅ Invoice #${invoiceId} deleted successfully.`);
     } catch (error) {
       const msg = error.response?.data?.detail || error.message;
@@ -221,7 +219,7 @@ const LLMAssistant = () => {
 
       // ── Customer update ───────────────────────────────────────────────────
       if (action.action === 'update_customer_with_data') {
-        const { data: customers } = await axios.get(`${API_BASE}/customers`);
+        const { data: customers } = await apiClient.get('/customers');
         const customer = customers.find(c =>
           c.customer_name.toLowerCase().includes(extracted_data.customer_name.toLowerCase())
         );
@@ -258,7 +256,7 @@ const LLMAssistant = () => {
 
       // ── Product update ───────────────────────────────────────────────────
       if (action.action === 'update_product_with_data') {
-        const { data: products } = await axios.get(`${API_BASE}/products`);
+        const { data: products } = await apiClient.get('/products');
         const product = products.find(p =>
           p.product_description.toLowerCase().includes(extracted_data.product_description.toLowerCase())
         );
@@ -297,7 +295,7 @@ const LLMAssistant = () => {
         };
 
         if (extracted_data.product_description) {
-          const { data: products } = await axios.get(`${API_BASE}/products`);
+          const { data: products } = await apiClient.get('/products');
           const product = products.find(p =>
             p.product_description.toLowerCase().includes(
               extracted_data.product_description.toLowerCase()
@@ -341,7 +339,7 @@ const LLMAssistant = () => {
         // Search customer by name
         let customer = null;
         if (extracted_data.customer_name) {
-          const { data: customers } = await axios.get(`${API_BASE}/customers`);
+          const { data: customers } = await apiClient.get('/customers');
           customer = customers.find(c =>
             c.customer_name.toLowerCase().includes(extracted_data.customer_name.toLowerCase())
           );
@@ -370,7 +368,7 @@ const LLMAssistant = () => {
             : [];
 
         // Search all products in one request, then match each item
-        const { data: products } = await axios.get(`${API_BASE}/products`);
+        const { data: products } = await apiClient.get('/products');
         const resolvedItems = rawItems.map(item => {
           const product = products.find(p =>
             p.product_description.toLowerCase().includes((item.product_description || '').toLowerCase())
@@ -433,7 +431,7 @@ const LLMAssistant = () => {
   const executeAPIAction = async (action) => {
     try {
       if (action.action === 'overdue_invoices') {
-        const response = await axios.get(`${API_BASE}/reports/overdue`);
+        const response = await apiClient.get('/reports/overdue');
         const data = response.data;
 
         if (data?.overdue_invoices?.length > 0) {

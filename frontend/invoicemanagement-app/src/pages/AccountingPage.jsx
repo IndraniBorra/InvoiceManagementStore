@@ -130,9 +130,7 @@ const AccountingPage = () => {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await apiClient.post('/accounting/bank-statement', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await apiClient.post('/accounting/bank-statement', form, { timeout: 90000 });
       setStatementResult(res.data);
     } catch (e) {
       alert('Upload failed: ' + (e.response?.data?.detail || e.message));

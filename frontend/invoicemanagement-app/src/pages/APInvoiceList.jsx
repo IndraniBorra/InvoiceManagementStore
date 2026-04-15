@@ -48,7 +48,7 @@ const APInvoiceList = () => {
     const form = new FormData();
     form.append('file', file);
     try {
-      const res = await apiClient.post('/ap/invoice/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await apiClient.post('/ap/invoice/upload', form, { timeout: 90000 });
       // Persist upload result so APInvoiceDetail can show field confidence + bill-to warning
       sessionStorage.setItem(`ap_upload_${res.data.id}`, JSON.stringify(res.data));
       navigate(`/ap/invoice/${res.data.id}`);
