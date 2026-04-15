@@ -78,6 +78,7 @@ provider:
 
 functions:
   main:
+    name: smartinvoice-backend-dev-main
     image: ${env:IMAGE_URI}
     timeout: 30
     memorySize: 512
