@@ -182,8 +182,15 @@ const SingleInvoicePage = () => {
   return (
     <div className="invoice-page">
       <div className="download-btn-wrapper">
-        <button 
-          onClick={handleDownloadPDF} 
+        <button
+          onClick={() => navigate(`/edit-invoice/${id}`)}
+          className="download-btn"
+          style={{ marginRight: 8, background: '#6b7280' }}
+        >
+          ✏️ Edit
+        </button>
+        <button
+          onClick={handleDownloadPDF}
           className={`download-btn ${downloading ? 'downloading' : ''}`}
           disabled={downloading}
         >
@@ -208,13 +215,6 @@ const SingleInvoicePage = () => {
             {/* Status Ribbon */}
             <div className="status-ribbon">
               {invoice.invoice_status?.toUpperCase() || 'DRAFT'}
-            </div>
-
-            {/* Customize Button */}
-            <div className="customize-btn-wrapper">
-              <button className="customize-btn">
-                Customize ▼
-              </button>
             </div>
 
             {/* Company Info - Left Side */}

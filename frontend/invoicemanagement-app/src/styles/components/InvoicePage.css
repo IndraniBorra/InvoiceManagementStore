@@ -210,6 +210,130 @@
   }
 }
 
+/* ── Status Pipeline ─────────────────────────────────────────── */
+.status-pipeline {
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg) var(--spacing-2xl);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.status-pipeline-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  position: relative;
+}
+
+.status-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--color-gray-200);
+  z-index: 0;
+}
+
+.status-step.done:not(:last-child)::after,
+.status-step.current:not(:last-child)::after {
+  background: var(--color-gray-400);
+}
+
+.step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--color-gray-300);
+  background: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
+}
+
+.status-step.done .step-dot   { background: #16a34a; border-color: #16a34a; color: white; }
+.status-step.current .step-dot { border-color: #2563eb; background: #2563eb; color: white; font-weight: 700; }
+
+/* Per-status current colors */
+.status-step.current.step-draft      .step-dot { background: #6b7280; border-color: #6b7280; }
+.status-step.current.step-submitted  .step-dot { background: #2563eb; border-color: #2563eb; }
+.status-step.current.step-overdue    .step-dot { background: #d97706; border-color: #d97706; }
+.status-step.current.step-paid       .step-dot { background: #16a34a; border-color: #16a34a; }
+.status-step.current.step-cancelled  .step-dot { background: #dc2626; border-color: #dc2626; }
+
+.step-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.status-step.done    .step-label    { color: #16a34a; }
+.status-step.current.step-draft     .step-label { color: #6b7280; font-weight: 700; }
+.status-step.current.step-submitted .step-label { color: #2563eb; font-weight: 700; }
+.status-step.current.step-overdue   .step-label { color: #d97706; font-weight: 700; }
+.status-step.current.step-paid      .step-label { color: #16a34a; font-weight: 700; }
+.status-step.current.step-cancelled .step-label { color: #dc2626; font-weight: 700; }
+
+/* ── Status Actions Bar ───────────────────────────────────────── */
+.status-action-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md) var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.status-action-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-gray-600);
+  white-space: nowrap;
+  margin-right: auto;
+}
+
+.status-action-bar .status-locked {
+  font-size: 13px;
+  color: var(--color-gray-500);
+  font-style: italic;
+}
+
+.btn-status {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-status:hover:not(:disabled) { opacity: 0.85; }
+.btn-status:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-status-green  { background: #16a34a; color: white; }
+.btn-status-orange { background: #d97706; color: white; }
+.btn-status-red    { background: #dc2626; color: white; }
+
 /* Focus management for form sections */
 .invoice-form-section:focus-within h3 {
   color: var(--color-primary);

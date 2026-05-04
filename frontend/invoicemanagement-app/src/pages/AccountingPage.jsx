@@ -130,7 +130,7 @@ const AccountingPage = () => {
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await apiClient.post('/accounting/bank-statement', form, { timeout: 90000 });
+      const res = await apiClient.post('/accounting/bank-statement', form, { timeout: 90000, headers: { 'Content-Type': undefined } });
       setStatementResult(res.data);
     } catch (e) {
       alert('Upload failed: ' + (e.response?.data?.detail || e.message));
@@ -275,7 +275,7 @@ const AccountingPage = () => {
 
   const refLabel = (type, id) => {
     if (!type) return '—';
-    const labels = { ar_invoice: 'AR', ap_invoice: 'AP', ap_payment: 'Payment', manual: 'Manual', bank_statement: 'Bank' };
+    const labels = { ar_invoice: 'AR', ar_payment: 'AR Payment', ap_invoice: 'AP', ap_payment: 'Payment', manual: 'Manual', bank_statement: 'Bank' };
     return id ? `${labels[type] || type} #${id}` : labels[type] || type;
   };
 
@@ -315,7 +315,7 @@ const AccountingPage = () => {
       {/* Journal Tab */}
       {tab === 0 && (() => {
         const filteredJournal = journal.filter(e => {
-          if (journalFilter === 'ar')     return e.reference_type === 'ar_invoice';
+          if (journalFilter === 'ar')     return ['ar_invoice', 'ar_payment'].includes(e.reference_type);
           if (journalFilter === 'ap')     return ['ap_invoice', 'ap_payment'].includes(e.reference_type);
           if (journalFilter === 'bank')   return e.reference_type === 'bank_statement';
           if (journalFilter === 'manual') return e.reference_type === 'manual';
@@ -323,7 +323,7 @@ const AccountingPage = () => {
         });
         const countFor = (f) => {
           if (f === 'all')    return journal.length;
-          if (f === 'ar')     return journal.filter(e => e.reference_type === 'ar_invoice').length;
+          if (f === 'ar')     return journal.filter(e => ['ar_invoice', 'ar_payment'].includes(e.reference_type)).length;
           if (f === 'ap')     return journal.filter(e => ['ap_invoice','ap_payment'].includes(e.reference_type)).length;
           if (f === 'bank')   return journal.filter(e => e.reference_type === 'bank_statement').length;
           if (f === 'manual') return journal.filter(e => e.reference_type === 'manual').length;

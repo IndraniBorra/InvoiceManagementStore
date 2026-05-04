@@ -12,7 +12,6 @@ provider:
   apiGateway:
     binaryMediaTypes:
       - 'application/pdf'
-      - '*/*'
 
   # ── X-Ray Tracing ────────────────────────────────────────────────────────────
   tracing:

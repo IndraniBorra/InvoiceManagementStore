@@ -331,7 +331,7 @@ def update_invoice(invoice_id: int, updated_invoice: InvoiceRequest, session: Se
             post_journal_entry(
                 session, date.today(),
                 f"AR Invoice #{invoice_id} paid",
-                "ar_invoice", invoice_id,
+                "ar_payment", invoice_id,
                 [
                     {"account_code": "1000", "debit": amount, "credit": 0.0, "description": "Cash received"},
                     {"account_code": "1100", "debit": 0.0, "credit": amount, "description": "Accounts Receivable cleared"},

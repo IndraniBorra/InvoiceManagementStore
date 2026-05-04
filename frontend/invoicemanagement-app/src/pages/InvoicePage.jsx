@@ -137,18 +137,88 @@ const InvoicePage = () => {
     }
   };
 
-  // Status transitions — trigger auto journal entries on backend
+  // Status transitions — trigger auto journal entries on backend for ledger statuses
   const handleStatusChange = async (newStatus) => {
     if (!currentInvoice.id) return;
-    const label = newStatus === 'submitted' ? 'Finalize' : 'Mark as Paid';
-    if (!window.confirm(`${label} Invoice #${currentInvoice.id}? This will post a journal entry to the ledger.`)) return;
+    const ledgerStatuses = { submitted: 'Finalize', paid: 'Mark as Paid' };
+    const labels = { submitted: 'Finalize', paid: 'Mark as Paid', overdue: 'Mark as Overdue', cancelled: 'Cancel Invoice' };
+    const label = labels[newStatus] || newStatus;
+    const ledgerNote = ledgerStatuses[newStatus] ? ' This will post a journal entry to the ledger.' : '';
+    if (!window.confirm(`${label} Invoice #${currentInvoice.id}?${ledgerNote}`)) return;
     try {
       await saveInvoice({ ...currentInvoice, invoice_status: newStatus }, true);
-      alert(`Invoice #${currentInvoice.id} ${newStatus}. Journal entry posted to ledger.`);
-      navigate('/accounting');
+      if (ledgerStatuses[newStatus]) {
+        alert(`Invoice #${currentInvoice.id} marked as ${newStatus}. Journal entry posted to ledger.`);
+        navigate('/accounting');
+      }
     } catch (err) {
       alert(`Failed: ${err.message}`);
     }
+  };
+
+  // Pipeline: ordered steps for the main flow
+  const PIPELINE_STEPS = [
+    { key: 'draft',     label: 'Draft' },
+    { key: 'submitted', label: 'Submitted' },
+    { key: 'overdue',   label: 'Overdue' },
+    { key: 'paid',      label: 'Paid' },
+    { key: 'cancelled', label: 'Cancelled' },
+  ];
+
+  const currentStatus = currentInvoice.invoice_status || 'draft';
+  const currentStepIndex = PIPELINE_STEPS.findIndex(s => s.key === currentStatus);
+
+  const StatusPipeline = () => (
+    <div className="status-pipeline">
+      <div className="status-pipeline-steps">
+        {PIPELINE_STEPS.map((step, idx) => {
+          const isDone = idx < currentStepIndex && currentStatus !== 'cancelled';
+          const isCurrent = step.key === currentStatus;
+          return (
+            <div
+              key={step.key}
+              className={`status-step step-${step.key}${isDone ? ' done' : ''}${isCurrent ? ' current' : ''}`}
+            >
+              <div className="step-dot">{isDone ? '✓' : idx + 1}</div>
+              <span className="step-label">{step.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const StatusActionBar = () => {
+    const isTerminal = currentStatus === 'paid' || currentStatus === 'cancelled';
+    return (
+      <div className="status-action-bar">
+        <span className="status-action-label">Change Status:</span>
+        {isTerminal ? (
+          <span className="status-locked">🔒 This invoice is {currentStatus} — no further changes</span>
+        ) : (
+          <>
+            {currentStatus === 'draft' && (
+              <button className="btn-status btn-status-green" onClick={() => handleStatusChange('submitted')} disabled={saving}>
+                Finalize → Ledger
+              </button>
+            )}
+            {(currentStatus === 'submitted' || currentStatus === 'overdue') && (
+              <button className="btn-status btn-status-green" onClick={() => handleStatusChange('paid')} disabled={saving}>
+                Mark as Paid → Ledger
+              </button>
+            )}
+            {currentStatus === 'submitted' && (
+              <button className="btn-status btn-status-orange" onClick={() => handleStatusChange('overdue')} disabled={saving}>
+                Mark Overdue
+              </button>
+            )}
+            <button className="btn-status btn-status-red" onClick={() => handleStatusChange('cancelled')} disabled={saving}>
+              Cancel Invoice
+            </button>
+          </>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -189,16 +259,6 @@ const InvoicePage = () => {
                 : 'Create Invoice'
             }
           </Button>
-          {isEditing && currentInvoice.invoice_status === 'draft' && (
-            <Button variant="primary" onClick={() => handleStatusChange('submitted')} disabled={saving}>
-              Finalize → Ledger
-            </Button>
-          )}
-          {isEditing && currentInvoice.invoice_status === 'submitted' && (
-            <Button variant="primary" onClick={() => handleStatusChange('paid')} disabled={saving}>
-              Mark as Paid → Ledger
-            </Button>
-          )}
           {isEditing && (
             <Button variant="secondary" onClick={() => navigate('/accounting')} disabled={saving}>
               View Ledger
@@ -232,6 +292,9 @@ const InvoicePage = () => {
           <button onClick={() => setShowAiNotice(false)}>✕</button>
         </div>
       )}
+
+      {isEditing && <StatusPipeline />}
+      {isEditing && <StatusActionBar />}
 
       <form id="invoice-form" onSubmit={handleSubmit} className="invoice-form">
         <div className="invoice-form-grid">
