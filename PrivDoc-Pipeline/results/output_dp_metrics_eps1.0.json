@@ -1,0 +1,9 @@
+{
+  "model": "output_dp",
+  "epsilon": 1.0,
+  "accuracy": 0.5813,
+  "auc_roc": 0.5748,
+  "f1": 0.4885,
+  "train_size": 640,
+  "test_size": 160
+}

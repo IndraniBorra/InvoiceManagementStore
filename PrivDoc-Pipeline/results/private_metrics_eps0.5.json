@@ -1,0 +1,9 @@
+{
+  "model": "private",
+  "epsilon": 0.5,
+  "accuracy": 0.5312,
+  "auc_roc": 0.5533,
+  "f1": 0.3478,
+  "train_size": 640,
+  "test_size": 160
+}

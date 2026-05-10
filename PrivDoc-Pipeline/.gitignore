@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Override root gitignore — include generated data CSVs for this project
+!*.csv
