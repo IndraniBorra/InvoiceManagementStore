@@ -37,6 +37,16 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+@app.get("/")
+def root():
+    return {
+        "name": "Invoice Management System API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
 @app.on_event("startup")
 def on_startup():
     """Create database tables on application startup for data persistence."""
