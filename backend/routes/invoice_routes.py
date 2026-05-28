@@ -7,8 +7,9 @@ from datetime import date, timedelta
 from models import Invoice, LineItem, Customer, Product
 from api import CustomerMinimalResponse, InvoiceRequest, InvoiceMinimalResponse, LineItemMinimalResponse, LineItemRequest, ProductMinimalResponse
 from routes.accounting_routes import post_journal_entry
+from auth import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # Invoice routes
 

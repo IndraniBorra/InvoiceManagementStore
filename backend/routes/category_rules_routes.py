@@ -14,8 +14,9 @@ from sqlmodel import Session, select
 
 from database import get_session
 from models import CategoryRule
+from auth import require_admin
 
-router = APIRouter(prefix="/accounting/category-rules", tags=["category-rules"])
+router = APIRouter(prefix="/accounting/category-rules", tags=["category-rules"], dependencies=[Depends(require_admin)])
 
 
 class CategoryRuleCreate(BaseModel):

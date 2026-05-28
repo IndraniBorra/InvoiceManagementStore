@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from database import get_session, engine
 from typing import List
 import models
 from models import Customer
 from api import CustomerRequest, CustomerMinimalResponse
-from fastapi import Query
+from auth import get_current_user
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # Create the database tables if they don't exist when our application starts
 models.SQLModel.metadata.create_all(bind = engine)

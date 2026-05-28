@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
+from auth import require_admin
 
 from database import get_session
 from models import APInvoice, APLineItem, APPayment, APVendor, Company
@@ -82,7 +83,7 @@ async def call_ml_extractor(pdf_bytes: bytes) -> dict:
     print("[ML Extractor] Using local regex extractor")
     return extract_from_bytes(pdf_bytes)
 
-router = APIRouter(tags=["accounts-payable"])
+router = APIRouter(tags=["accounts-payable"], dependencies=[Depends(require_admin)])
 
 # Local fallback directory (used when S3_UPLOADS_BUCKET is not set)
 # Use /tmp in Lambda (read-only filesystem), local path otherwise
