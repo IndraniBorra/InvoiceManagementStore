@@ -38,6 +38,8 @@ jobs:
           # Set this in GitHub Secrets after first backend deploy
           # Format: https://{api-id}.execute-api.us-east-1.amazonaws.com/dev
           REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          REACT_APP_COGNITO_POOL_ID: ${{ secrets.COGNITO_POOL_ID }}
+          REACT_APP_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
           CI: false   # Don't treat warnings as errors
         run: npm run build
 

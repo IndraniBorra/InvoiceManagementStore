@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import anthropic
 import pdfplumber
+from auth import require_admin
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlmodel import Session, select, func
@@ -14,7 +15,7 @@ from sqlmodel import Session, select, func
 from database import get_session
 from models import BankAccount, CategoryRule, ChartOfAccount, JournalEntry, JournalLine
 
-router = APIRouter(prefix="/accounting", tags=["accounting"])
+router = APIRouter(prefix="/accounting", tags=["accounting"], dependencies=[Depends(require_admin)])
 
 
 # ── Pydantic schemas ───────────────────────────────────────────────────────────

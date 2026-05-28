@@ -5,12 +5,13 @@ from typing import Optional, List
 from database import get_session
 from models import Invoice, Customer, Product, LineItem
 from services.report_service import ReportService
+from auth import get_current_user
 import logging
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(get_current_user)])
 
 @router.get("/revenue-summary")
 async def get_revenue_summary(

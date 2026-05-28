@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from database import get_session
 from models import BankAccount, Company, CategoryRule, ChartOfAccount, JournalEntry, JournalLine
 from routes.accounting_routes import apply_category_rules, CONFIDENCE_THRESHOLD
+from auth import require_admin
 
 import plaid
 from plaid.api import plaid_api
@@ -31,7 +32,7 @@ from plaid.model.products import Products
 
 import anthropic
 
-router = APIRouter(prefix="/plaid", tags=["plaid"])
+router = APIRouter(prefix="/plaid", tags=["plaid"], dependencies=[Depends(require_admin)])
 
 # ── Plaid client setup ─────────────────────────────────────────────────────────
 

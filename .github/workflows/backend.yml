@@ -58,6 +58,8 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+          COGNITO_POOL_ID: ${{ secrets.COGNITO_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
           LOG_LEVEL: INFO
           DEBUG_MODE: "false"
         run: sls deploy --stage dev --verbose

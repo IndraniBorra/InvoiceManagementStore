@@ -105,3 +105,49 @@ jobs:
           echo "⚠️  Still need to set manually after first backend deploy:"
           echo "   DATABASE_URL      = postgresql://smartinvoice_admin:DB_PASS@RDS_ENDPOINT:5432/smartinvoice?sslmode=require"
           echo "   REACT_APP_API_URL = (from CloudFormation output ApiGatewayUrl)"
+
+      # ── Cognito ───────────────────────────────────────────────────────────────
+
+      - name: Terraform Init (Cognito)
+        working-directory: infra/cognito
+        run: |
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=cognito-${{ inputs.stage }}/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -reconfigure
+
+      - name: Terraform Plan (Cognito)
+        working-directory: infra/cognito
+        run: terraform plan -var="stage=${{ inputs.stage }}" -out=tfplan-cognito
+
+      - name: Terraform Apply (Cognito)
+        if: inputs.action == 'apply'
+        working-directory: infra/cognito
+        run: terraform apply -auto-approve tfplan-cognito
+
+      - name: Terraform Destroy (Cognito)
+        if: inputs.action == 'destroy'
+        working-directory: infra/cognito
+        run: terraform destroy -auto-approve -var="stage=${{ inputs.stage }}"
+
+      - name: Set Cognito GitHub Secrets
+        if: inputs.action == 'apply'
+        working-directory: infra/cognito
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          POOL_ID=$(terraform output -raw cognito_pool_id)
+          CLIENT_ID=$(terraform output -raw cognito_client_id)
+
+          gh secret set COGNITO_POOL_ID --body "$POOL_ID"
+          gh secret set COGNITO_CLIENT_ID --body "$CLIENT_ID"
+
+          echo ""
+          echo "✅ Cognito secrets set!"
+          echo "   COGNITO_POOL_ID   = $POOL_ID"
+          echo "   COGNITO_CLIENT_ID = $CLIENT_ID"
+          echo ""
+          echo "⚠️  Update local .env files with these values for local dev:"
+          echo "   backend/.env  → COGNITO_POOL_ID / COGNITO_CLIENT_ID"
+          echo "   frontend/.env → REACT_APP_COGNITO_POOL_ID / REACT_APP_COGNITO_CLIENT_ID"

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from anthropic import Anthropic
 from typing import List
 import os
+from auth import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 client = Anthropic()  # reads ANTHROPIC_API_KEY from environment automatically
 
 

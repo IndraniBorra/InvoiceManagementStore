@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, func
 from database import get_session
 from models import Invoice, APPayment
+from auth import require_admin
 import os
 import warnings
 warnings.filterwarnings("ignore")
 
-router = APIRouter(prefix="/forecasting", tags=["forecasting"])
+router = APIRouter(prefix="/forecasting", tags=["forecasting"], dependencies=[Depends(require_admin)])
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

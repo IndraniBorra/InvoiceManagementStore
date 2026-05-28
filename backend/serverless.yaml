@@ -73,6 +73,10 @@ provider:
     # Logging
     LOG_LEVEL: ${env:LOG_LEVEL, "INFO"}
     DEBUG_MODE: ${env:DEBUG_MODE, "false"}
+    # Cognito Auth
+    COGNITO_REGION: us-east-1
+    COGNITO_POOL_ID: ${env:COGNITO_POOL_ID, ""}
+    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ""}
 
 
 functions:
