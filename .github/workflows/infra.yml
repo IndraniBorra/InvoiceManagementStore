@@ -1,21 +1,26 @@
 name: Deploy Infrastructure (Terraform)
 
-on:
+'on':
   # Manual trigger only — you control when infra changes deploy
   workflow_dispatch:
     inputs:
       stage:
-        description: 'Stage to deploy'
+        description: Stage to deploy
         required: true
-        default: 'dev'
+        default: dev
         type: choice
-        options: [dev, prod]
+        options:
+          - dev
+          - prod
       action:
-        description: 'Terraform action'
+        description: Terraform action
         required: true
-        default: 'apply'
+        default: apply
         type: choice
-        options: [plan, apply, destroy]
+        options:
+          - plan
+          - apply
+          - destroy
 
 jobs:
   terraform:
@@ -36,8 +41,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
-          terraform_wrapper: false  # needed for clean output capture
+          terraform_version: 1.7.0
+          terraform_wrapper: false # needed for clean output capture
 
       # Create the S3 state bucket if it doesn't exist yet
       - name: Create Terraform state bucket
