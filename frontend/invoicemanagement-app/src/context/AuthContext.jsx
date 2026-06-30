@@ -5,6 +5,8 @@ import {
   signOut,
   getCurrentUser,
   fetchAuthSession,
+  signUp as amplifySignUp,
+  confirmSignUp as amplifyConfirmSignUp,
 } from 'aws-amplify/auth';
 
 Amplify.configure({
@@ -35,6 +37,7 @@ export function AuthProvider({ children }) {
         const userData = {
           sub: payload.sub,
           email: payload.email,
+          name: payload.name || payload.email,
           groups: payload['cognito:groups'] || [],
         };
         setUser(userData);
@@ -62,6 +65,18 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('authToken');
   }
 
+  async function signUp(name, email, password) {
+    await amplifySignUp({
+      username: email,
+      password,
+      options: { userAttributes: { email, name } },
+    });
+  }
+
+  async function confirmSignUp(email, code) {
+    await amplifyConfirmSignUp({ username: email, confirmationCode: code });
+  }
+
   const value = {
     user,
     loading,
@@ -69,6 +84,8 @@ export function AuthProvider({ children }) {
     isAdmin: user?.groups?.includes('admin') ?? false,
     login,
     logout,
+    signUp,
+    confirmSignUp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

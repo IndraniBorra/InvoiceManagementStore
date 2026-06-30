@@ -21,6 +21,7 @@ from routes.accounting_routes import router as accounting_router
 from routes.forecasting_routes import router as forecasting_router
 from routes.plaid_routes import router as plaid_router
 from routes.category_rules_routes import router as category_rules_router
+from routes.user_management_routes import router as user_management_router
 
 # Import security middleware
 from middleware.validation import InputValidationMiddleware, SecurityHeadersMiddleware
@@ -204,6 +205,7 @@ app.include_router(accounting_router)
 app.include_router(forecasting_router)
 app.include_router(plaid_router)
 app.include_router(category_rules_router)
+app.include_router(user_management_router)
 
 # Lambda handler for serverless deployment
 # lifespan="off" avoids ASGI lifespan issues on Lambda

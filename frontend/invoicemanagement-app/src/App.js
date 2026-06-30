@@ -49,6 +49,12 @@ import ProductPage from './components/ProductPage';
 import LLMAssistant from './components/LLMAssistant';
 import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
+import SignUpPage from './pages/SignUpPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ProfilePage from './pages/ProfilePage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import { Toaster } from 'react-hot-toast';
 
 // Main App component
 const App = () => {
@@ -57,10 +63,14 @@ const App = () => {
       <AuthProvider>
         <InvoiceProvider>
           <Router>
+            <Toaster position="top-right" />
             <div className="app">
               <Routes>
-                {/* Public route */}
+                {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignUpPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                 {/* All other routes require auth — Navbar + LLM Assistant shown inside */}
                 <Route
@@ -105,6 +115,12 @@ const App = () => {
 
                           {/* Admin-only: Forecasting & Insights */}
                           <Route path="/forecasting" element={<ProtectedRoute adminOnly><ForecastingPage /></ProtectedRoute>} />
+
+                          {/* Admin-only: User Management */}
+                          <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
+
+                          {/* Profile (any authenticated user) */}
+                          <Route path="/profile" element={<ProfilePage />} />
 
                           {/* Default/Fallback */}
                           <Route path="*" element={<DashboardPage />} />

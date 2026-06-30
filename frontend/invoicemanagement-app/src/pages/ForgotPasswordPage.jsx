@@ -1,46 +1,58 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
+import { resetPassword } from 'aws-amplify/auth';
 
-function LoginPage() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const resetSuccess = params.get('reset') === 'success';
-  const signupSuccess = params.get('signup') === 'success';
-
+function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/');
+      await resetPassword({ username: email });
+      setSent(true);
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      setError(err.message || 'Failed to send reset code. Please try again.');
     } finally {
       setLoading(false);
     }
   }
 
+  if (sent) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Check your email</h1>
+          <p style={styles.subtitle}>
+            We sent a 6-digit verification code to <strong>{email}</strong>.
+            Enter it on the next page to set a new password.
+          </p>
+          <Link to={`/reset-password?email=${encodeURIComponent(email)}`} style={styles.button}>
+            Enter verification code
+          </Link>
+          <p style={styles.footerText}>
+            Didn't receive it? Check your spam folder or{' '}
+            <button onClick={() => setSent(false)} style={styles.textButton}>
+              try again
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h1 style={styles.title}>SmartInvoice</h1>
-        <p style={styles.subtitle}>Sign in to your account</p>
+        <h1 style={styles.title}>Forgot password?</h1>
+        <p style={styles.subtitle}>
+          Enter your email and we'll send you a code to reset your password.
+        </p>
 
-        {resetSuccess && (
-          <div style={styles.success}>Password reset successfully. Please sign in with your new password.</div>
-        )}
-        {signupSuccess && (
-          <div style={styles.success}>Account created! Please sign in.</div>
-        )}
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -57,29 +69,13 @@ function LoginPage() {
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              style={styles.input}
-              placeholder="••••••••"
-            />
-          </div>
-
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Sending...' : 'Send reset code'}
           </button>
         </form>
-        <p style={styles.forgotLink}>
-          <a href="/forgot-password" style={styles.link}>Forgot password?</a>
-        </p>
-        <p style={styles.signupLink}>
-          Don't have an account?{' '}
-          <a href="/signup" style={styles.link}>Sign up</a>
+
+        <p style={styles.footerText}>
+          <Link to="/login" style={styles.link}>Back to sign in</Link>
         </p>
       </div>
     </div>
@@ -109,9 +105,10 @@ const styles = {
     color: '#1a1a2e',
   },
   subtitle: {
-    margin: '0 0 28px',
+    margin: '0 0 24px',
     color: '#666',
     fontSize: '14px',
+    lineHeight: '1.5',
   },
   error: {
     background: '#fff0f0',
@@ -145,6 +142,9 @@ const styles = {
     outline: 'none',
   },
   button: {
+    display: 'block',
+    textAlign: 'center',
+    textDecoration: 'none',
     marginTop: '8px',
     padding: '12px',
     background: '#4f46e5',
@@ -155,30 +155,24 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
   },
-  success: {
-    background: '#f0fff4',
-    color: '#276749',
-    border: '1px solid #9ae6b4',
-    borderRadius: '6px',
-    padding: '10px 14px',
-    marginBottom: '16px',
-    fontSize: '14px',
-  },
-  forgotLink: {
-    marginTop: '16px',
+  footerText: {
+    marginTop: '20px',
     textAlign: 'center',
     fontSize: '13px',
-  },
-  signupLink: {
-    marginTop: '8px',
-    textAlign: 'center',
-    fontSize: '13px',
-    color: '#555',
+    color: '#666',
   },
   link: {
     color: '#4f46e5',
     textDecoration: 'none',
   },
+  textButton: {
+    background: 'none',
+    border: 'none',
+    color: '#4f46e5',
+    cursor: 'pointer',
+    fontSize: '13px',
+    padding: '0',
+  },
 };
 
-export default LoginPage;
+export default ForgotPasswordPage;

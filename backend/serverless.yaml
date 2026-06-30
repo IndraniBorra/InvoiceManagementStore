@@ -56,6 +56,19 @@ provider:
             - xray:PutTraceSegments
             - xray:PutTelemetryRecords
           Resource: "*"
+        # Cognito: user management APIs
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminListUsersInGroup
+            - cognito-idp:AdminAddUserToGroup
+            - cognito-idp:AdminRemoveUserFromGroup
+            - cognito-idp:AdminListGroupsForUser
+            - cognito-idp:AdminDisableUser
+            - cognito-idp:AdminEnableUser
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:AdminGetUser
+            - cognito-idp:ListUsers
+          Resource: "arn:aws:cognito-idp:us-east-1:*:userpool/*"
 
   # ── Lambda Environment Variables ──────────────────────────────────────────────
   environment:

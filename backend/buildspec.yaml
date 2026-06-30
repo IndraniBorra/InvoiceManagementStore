@@ -1,5 +1,6 @@
-# spec file to buld serverless application using serverless framework
-# This file is used by AWS CodeBuild to build the application   
+# DEPRECATED — this file was used by AWS CodeBuild and is no longer active.
+# Deployment is now handled entirely by GitHub Actions (.github/workflows/backend.yml).
+# Do not run this file manually — it deploys to --stage local which does not exist.
 
 
 version: 0.2
